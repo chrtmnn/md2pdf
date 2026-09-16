@@ -1,29 +1,13 @@
 #!/usr/bin/env node
 
 import fs from 'fs';
-import os from 'os';
-import path from 'path';
 import { createProgram } from './cli-program';
-import { cleanup } from './steps/cleanup';
-import { assertOutputReplaceable, copyOutput } from './steps/copy-output';
-import { describeUnusedCssVar, findUnusedCssVars } from './steps/css-var-usage';
-import { describeMissingMarkerBlock, scanDoctocMarkers } from './steps/doctoc-markers';
-import { MergedInput, mergeMarkdown } from './steps/merge-markdown';
-import { describeOutputCollisions, findOutputCollisions } from './steps/output-targets';
-import { resolveInputs } from './steps/resolve-inputs';
-import { resolveStylesheet } from './steps/resolve-stylesheet';
-import { extractTitle } from './steps/extract-title';
-import { inlineAssets } from './steps/inline-assets';
-import { prepareWorkdir } from './steps/prepare-workdir';
-import { hasMermaidFences, renderMermaid } from './steps/render-mermaid';
-import { renderHtml } from './steps/render-html';
-import { renderPdf } from './steps/render-pdf';
+import { formatError, PipelineReporter, runPipeline } from './pipeline';
 import { resolveOptions } from './steps/resolve-options';
 import { createStatusLine } from './steps/status-line';
+import { runTool } from './steps/run-tool';
 import { createTempRegistry } from './steps/temp-registry';
-import { runDoctoc, shouldRunDoctoc } from './steps/run-doctoc';
-import { describeStylesheet } from './steps/stylesheet-lookup';
-import { ConversionContext, ConverterOptions } from './types';
+import { ConverterOptions } from './types';
 
 const program = createProgram().parse(process.argv);
 
@@ -41,16 +25,22 @@ try {
   process.exit(1);
 }
 
-void run(options).catch((error) => {
+void main(options).catch((error) => {
   console.error(formatError(error));
   process.exit(1);
 });
 
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-async function run(options: ConverterOptions): Promise<void> {
+/**
+ * Wires the run to this process: the `@clack/prompts` UI, the temp-directory
+ * registry the signal handlers empty, and the exit code.
+ *
+ * The conversion itself lives in `pipeline.ts` (#71). What stays here is what
+ * cannot be tested because it *is* the process — the argument parsing above,
+ * the terminal, the signal handlers and `process.exit`.
+ *
+ * @param options - Resolved converter options for the run.
+ */
+async function main(options: ConverterOptions): Promise<void> {
   const { S_STEP_ACTIVE, intro, isTTY, log, outro } = await import('@clack/prompts');
 
   // The live line only makes sense on a terminal: piped into a file or a CI
@@ -59,132 +49,38 @@ async function run(options: ConverterOptions): Promise<void> {
   const interactive = isTTY(process.stdout) && !options.verbose;
   const status = createStatusLine(process.stdout, interactive);
 
-  /**
-   * Shows what is running right now, in clack's own line shape.
-   *
-   * @param text - Step description, already prefixed with the file name.
-   */
-  function showStatus(text: string): void {
-    status.show(`${S_STEP_ACTIVE}  ${text}`);
-  }
-
-  function runStep<T>(label: string, action: () => T): T {
-    if (options.verbose) {
-      log.info(label);
-    }
-    showStatus(label);
-
-    try {
-      const result = action();
-      if (options.verbose) {
-        log.success(label);
-      }
+  // Every message blanks the live line first, so nothing the run prints can
+  // collide with the step that is still on screen.
+  const reporter: PipelineReporter = {
+    intro: (message) => {
       status.hide();
-      return result;
-    } catch (error) {
+      intro(message);
+    },
+    outro: (message) => {
       status.hide();
-      // Without this the output ended on the plain "started" line (#51).
-      log.error(`${label} failed`);
-      throw error;
-    }
-  }
-
-  /**
-   * One live line for a whole file, naming the step in progress.
-   *
-   * Seven persistent lines per file buried the warnings in a 30-file run
-   * (#59), so the steps share a single line that is rewritten in place and
-   * ends as `Created <pdf>`; the per-step lines come back with `--verbose`.
-   */
-  function fileProgress(name: string) {
-    showStatus(name);
-
-    return {
-      /** Runs one pipeline step, naming it on this file's line. */
-      run<T>(label: string, action: () => T): T {
-        if (options.verbose) {
-          log.info(`${name} · ${label}`);
-        }
-        showStatus(`${name} · ${label}`);
-
-        try {
-          const result = action();
-          if (options.verbose) {
-            log.success(`${name} · ${label}`);
-          }
-          return result;
-        } catch (error) {
-          status.hide();
-          if (!interactive) {
-            log.error(`${name} · ${label} failed`);
-          }
-          throw error;
-        }
-      },
-      /** Reports a non-fatal problem without disturbing the live line. */
-      warn(message: string): void {
-        status.hide();
-        log.warn(message);
-      },
-      /** Ends the file with a success message. */
-      done(message: string): void {
-        status.hide();
-        log.success(message);
-      },
-      /** Ends the file with a failure message. */
-      failed(message: string): void {
-        status.hide();
-        log.error(message);
-      },
-      /** Ends the file with a neutral message, for a skipped file. */
-      skipped(message: string): void {
-        status.hide();
-        log.warn(message);
-      },
-    };
-  }
-
-  intro('md2pdf');
-
-  // A retired `--css-var` name still works but is translated, which the user
-  // has to be told about to migrate the command line (#59).
-  options.cssVarWarnings.forEach((warning) => log.warn(warning));
-
-  // A personal ~/.md2pdf/default.css replaces the bundled stylesheet without
-  // any flag, so --verbose says which one is in use and why.
-  if (options.verbose) {
-    log.info(describeStylesheet({ path: options.stylesheet, origin: options.stylesheetOrigin }));
-  }
-
-  // Positional arguments may be files or directories; expand them into the
-  // concrete list of Markdown files before anything else runs.
-  const inputs = runStep('Resolving input files', () => resolveInputs(program.args, options));
-  inputs.warnings.forEach((warning) => log.warn(warning));
-  inputs.rejected.forEach((file) => log.warn(`Skipped non-Markdown file: ${file}`));
-
-  // Every output path is known before anything is written, so a collision
-  // aborts the run instead of letting a later file silently replace an
-  // earlier one's output. A merged run writes a single output. Missing files
-  // write nothing and are reported later.
-  if (!options.merge) {
-    const collisions = findOutputCollisions(
-      inputs.files.filter((file) => fs.existsSync(file)),
-      options.outputDir,
-    );
-    if (collisions.length > 0) {
-      log.error(describeOutputCollisions(collisions));
-      outro('Conversion aborted');
-      process.exit(1);
-    }
-  }
-
-  // Checked before any temp directory exists, so the early exit cannot leak
-  // one: `process.exit` does not run `finally` blocks.
-  if (options.merge && inputs.files.length === 0) {
-    log.error('Nothing to merge: no Markdown files were resolved from the given arguments.');
-    outro('Merge failed');
-    process.exit(1);
-  }
+      outro(message);
+    },
+    info: (message) => {
+      status.hide();
+      log.info(message);
+    },
+    success: (message) => {
+      status.hide();
+      log.success(message);
+    },
+    warn: (message) => {
+      status.hide();
+      log.warn(message);
+    },
+    error: (message) => {
+      status.hide();
+      log.error(message);
+    },
+    // Shows what is running right now, in clack's own line shape.
+    status: (text) => status.show(`${S_STEP_ACTIVE}  ${text}`),
+    clearStatus: () => status.hide(),
+    interactive,
+  };
 
   // `finally` covers a failure but not a signal, so every live temp directory
   // is registered and removed on Ctrl-C as well (#51). While an external tool
@@ -205,170 +101,10 @@ async function run(options: ConverterOptions): Promise<void> {
     });
   }
 
-  // `--merge` concatenates the resolved Markdown before rendering and then
-  // feeds the pipeline a single file, so every other flag keeps working
-  // unchanged and doctoc produces one TOC spanning all documents.
-  let merged: MergedInput | undefined;
-  let runOptions = options;
-  let filesToConvert = inputs.files;
-  let skippedCount = 0;
-  let convertedCount = 0;
-  // Rejected non-Markdown positionals count like missing files; a merged run
-  // reports them through skippedCount instead.
-  let failedCount = options.merge ? 0 : inputs.rejected.length;
-
-  // Resolve the effective stylesheet once for all files. The temp dir receives
-  // the self-contained copy when the stylesheet has local references to
-  // inline or overrides to append, and stays empty otherwise.
-  const cssTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'md2pdf_css_'));
-  tempDirs.register(cssTempDir);
-
-  try {
-    if (options.merge) {
-      merged = runStep('Merging Markdown files', () => mergeMarkdown(inputs.files, options));
-      tempDirs.register(merged.mergeDir);
-      merged.warnings.forEach((warning) => log.warn(warning));
-      merged.skipped.forEach((file) => log.warn(`Skipped missing file: ${file}`));
-      skippedCount = merged.skipped.length + inputs.rejected.length;
-      filesToConvert = [merged.mergedFile];
-
-      // The merged file lives in a temp directory, so the target directory has
-      // to be pinned explicitly instead of being derived from its location:
-      // `-o` when given, otherwise the common ancestor of the inputs.
-      runOptions = { ...options, outputDir: merged.targetDir };
-    }
-
-    const effectiveStylesheet = resolveStylesheet(options, cssTempDir);
-
-    // An override the stylesheet never reads is written out and ignored by
-    // the browser, which a typo in the name would otherwise leave invisible.
-    if (effectiveStylesheet && options.cssVars.length > 0) {
-      const css = fs.readFileSync(effectiveStylesheet, 'utf8');
-      findUnusedCssVars(css, options.cssVars).forEach((name) => log.warn(describeUnusedCssVar(name)));
-    }
-
-    for (const file of filesToConvert) {
-      const progress = fileProgress(merged ? `${merged.mergedCount} documents merged` : path.basename(file));
-
-      // Inside the try, so a failure here fails this file like any other step
-      // instead of aborting the whole run, leaking the work directory and
-      // skipping the summary (#51).
-      let context: ConversionContext | undefined;
-
-      try {
-        context = progress.run('Preparing workspace', () => prepareWorkdir(file, runOptions));
-        if (!context) {
-          progress.skipped(`Skipped missing file: ${file}`);
-          failedCount++;
-          continue;
-        }
-
-        tempDirs.register(context.workdir);
-
-        // Narrowed once, so the steps below keep a definitely-defined context
-        // after the `continue` above.
-        const active = context;
-        active.effectiveStylesheet = effectiveStylesheet;
-
-        // Checked before `-u` can write back to the source and before any
-        // rendering, so a protected output fails the file without side effects.
-        assertOutputReplaceable(active);
-        // `-u` only refreshes an existing marker block. A broken pair is
-        // reported by runDoctoc, and a merged run cannot carry `-u`.
-        if (options.writeToc && scanDoctocMarkers(fs.readFileSync(active.sourceFile, 'utf8')).kind === 'none') {
-          progress.warn(describeMissingMarkerBlock(active.sourceFile, options.toc === 'always'));
-        }
-        if (shouldRunDoctoc(options, active.sourceFile)) {
-          progress.run('Table of contents', () => runDoctoc(active));
-        }
-        if (options.title) {
-          // An explicit title beats both the first heading and the name a
-          // merged run derives from `--merge` (#59).
-          active.docTitle = options.title;
-        } else if (!merged) {
-          // A merged run keeps the `--merge` name as its document title,
-          // which prepareWorkdir already derived from the merged file name.
-          progress.run('Extracting document title', () => extractTitle(active));
-        }
-        // `inputMarkdown` rather than the source file: that is what
-        // renderMermaid reads, and doctoc may have replaced it with the temp
-        // copy in between (#51).
-        if (hasMermaidFences(active.inputMarkdown)) {
-          progress.run('Rendering Mermaid diagrams', () => renderMermaid(active));
-        } else {
-          // Wrapped like every other step, so it gets the same spinner and
-          // failure marker instead of happening silently.
-          progress.run('Preparing Markdown', () => fs.copyFileSync(active.inputMarkdown, active.convertedMarkdown));
-        }
-        // md-to-pdf renders from a server rooted at the work directory, so
-        // the document's own assets have to be carried into the converted
-        // Markdown before it runs.
-        progress.run('Embedding assets', () => inlineAssets(active)).forEach((warning) => progress.warn(warning));
-        progress.run('Rendering PDF', () => renderPdf(active));
-        if (options.html) {
-          progress.run('Rendering HTML', () => renderHtml(active));
-        }
-        progress.run('Copying output', () => copyOutput(active));
-
-        progress.done(`Created ${active.outputPdf}`);
-        if (options.html) {
-          log.success(`Created ${active.outputHtml}`);
-        }
-        convertedCount++;
-      } catch (error) {
-        progress.failed(formatError(error));
-        failedCount++;
-      } finally {
-        if (context) {
-          cleanup(context);
-          tempDirs.unregister(context.workdir);
-          if (options.keepTemp) {
-            log.info(`Temp kept at ${context.workdir}`);
-          }
-        }
-      }
-    }
-  } finally {
-    if (options.keepTemp) {
-      // `-k` keeps the stylesheet that was actually used, without which the
-      // kept work directory cannot reproduce the run (#51).
-      log.info(`Effective stylesheet kept at ${cssTempDir}`);
-      if (merged) {
-        log.info(`Merged Markdown kept at ${merged.mergedFile}`);
-      }
-    } else {
-      fs.rmSync(cssTempDir, { recursive: true, force: true });
-      if (merged) {
-        fs.rmSync(merged.mergeDir, { recursive: true, force: true });
-      }
-    }
-
-    tempDirs.unregister(cssTempDir);
-    if (merged) {
-      tempDirs.unregister(merged.mergeDir);
-    }
+  // A successful run returns and lets Node exit on its own, as it always has;
+  // only a failure sets the exit code explicitly.
+  const exitCode = runPipeline(program.args, options, { reporter, tempDirs, run: runTool });
+  if (exitCode !== 0) {
+    process.exit(exitCode);
   }
-
-  if (merged) {
-    if (convertedCount === 0) {
-      outro('Merge failed');
-      process.exit(1);
-    }
-
-    const mergedPdf = `${options.merge}.pdf`;
-    if (skippedCount > 0) {
-      outro(`${merged.mergedCount} merged into ${mergedPdf}, ${skippedCount} skipped`);
-      process.exit(1);
-    }
-
-    outro(`${merged.mergedCount} merged into ${mergedPdf}`);
-    return;
-  }
-
-  if (failedCount > 0) {
-    outro(`${convertedCount} converted, ${failedCount} failed`);
-    process.exit(1);
-  }
-
-  outro(`${convertedCount} converted`);
 }

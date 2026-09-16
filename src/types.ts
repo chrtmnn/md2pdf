@@ -34,6 +34,17 @@ export type ToolName = 'doctoc' | 'mermaidCli' | 'mdToPdf';
 export type PackageOverrides = Partial<Record<ToolName, string>>;
 
 /**
+ * How a step starts an external tool.
+ *
+ * Every step that spawns doctoc, mermaid-cli or md-to-pdf takes its runner as
+ * a parameter that defaults to the real `runTool`, so a test can pass a fake
+ * that records the arguments and writes the file the tool would have written
+ * (#71). The spawning itself — `execFileSync`, the timeout, the output buffer
+ * — stays untested by design and is covered by `pnpm pack:smoke`.
+ */
+export type ToolRunner = (tool: ToolName, args: string[], options: ConverterOptions) => void;
+
+/**
  * Resolved CLI options shared by every conversion step.
  */
 export type ConverterOptions = {

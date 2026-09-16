@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { ConversionContext, ConverterOptions } from '../types';
+import { ConversionContext, ConverterOptions, ToolRunner } from '../types';
 import {
   isTocOnlyRefresh,
   maskDocumentedMarkers,
@@ -52,11 +52,13 @@ export function shouldRunDoctoc(options: ConverterOptions, sourceFile: string): 
  * rules themselves live in {@link relocateTocBeforeFirstH2}.
  *
  * @param context - Mutable conversion state for the current source file.
+ * @param run - Starts doctoc; defaults to the real {@link runTool} and is
+ *   replaced by a fake in the tests (#71).
  * @throws When the source file has a broken marker pair, or when the refresh
  *   would change the source file outside its TOC block. The source file is
  *   left untouched in both cases.
  */
-export function runDoctoc(context: ConversionContext): void {
+export function runDoctoc(context: ConversionContext, run: ToolRunner = runTool): void {
   const source = fs.readFileSync(context.sourceFile, 'utf8');
   const markers = scanDoctocMarkers(source);
 
@@ -69,7 +71,7 @@ export function runDoctoc(context: ConversionContext): void {
   context.inputMarkdown = path.join(context.workdir, context.baseName);
   fs.writeFileSync(context.inputMarkdown, maskDocumentedMarkers(source));
 
-  runTool('doctoc', [context.inputMarkdown], context.options);
+  run('doctoc', [context.inputMarkdown], context.options);
 
   let refreshed = fs.readFileSync(context.inputMarkdown, 'utf8');
 

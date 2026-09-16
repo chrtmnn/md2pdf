@@ -1,4 +1,4 @@
-import { ConversionContext } from '../types';
+import { ConversionContext, ToolRunner } from '../types';
 import { buildMdToPdfArgs } from './md-to-pdf-args';
 import { runTool } from './run-tool';
 
@@ -11,7 +11,8 @@ import { runTool } from './run-tool';
  * step runs.
  *
  * @param context - Mutable conversion state for the current source file.
+ * @param run - Starts md-to-pdf; defaults to the real {@link runTool} (#71).
  */
-export function renderPdf(context: ConversionContext): void {
-  runTool('mdToPdf', buildMdToPdfArgs(context), context.options);
+export function renderPdf(context: ConversionContext, run: ToolRunner = runTool): void {
+  run('mdToPdf', buildMdToPdfArgs(context), context.options);
 }

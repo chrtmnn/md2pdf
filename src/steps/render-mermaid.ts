@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { ConversionContext } from '../types';
+import { ConversionContext, ToolRunner } from '../types';
 import { runTool } from './run-tool';
 
 const MERMAID_FENCE_RE = /^[ \t]{0,3}(?:```|~~~)\s*mermaid\b/m;
@@ -28,13 +28,14 @@ export function hasMermaidFences(filePath: string): boolean {
  * Renders Mermaid fences to SVG assets and writes the converted Markdown file.
  *
  * @param context - Mutable conversion state for the current source file.
+ * @param run - Starts mermaid-cli; defaults to the real {@link runTool} (#71).
  */
-export function renderMermaid(context: ConversionContext): void {
+export function renderMermaid(context: ConversionContext, run: ToolRunner = runTool): void {
   const args = ['-i', context.inputMarkdown, '-o', context.convertedMarkdown];
 
   if (context.options.png) {
     args.push('-e', 'png', '-s', String(PNG_PRINT_SCALE));
   }
 
-  runTool('mermaidCli', args, context.options);
+  run('mermaidCli', args, context.options);
 }

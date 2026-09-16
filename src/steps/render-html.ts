@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { ConversionContext } from '../types';
+import { ConversionContext, ToolRunner } from '../types';
 import { buildMdToPdfArgs } from './md-to-pdf-args';
 import { stampGeneratedHtml } from './output-targets';
 import { runTool } from './run-tool';
@@ -14,9 +14,10 @@ import { runTool } from './run-tool';
  * self-contained once it is copied next to the PDF.
  *
  * @param context - Mutable conversion state for the current source file.
+ * @param run - Starts md-to-pdf; defaults to the real {@link runTool} (#71).
  */
-export function renderHtml(context: ConversionContext): void {
-  runTool('mdToPdf', [...buildMdToPdfArgs(context), '--as-html'], context.options);
+export function renderHtml(context: ConversionContext, run: ToolRunner = runTool): void {
+  run('mdToPdf', [...buildMdToPdfArgs(context), '--as-html'], context.options);
 
   // The marker lets a later run tell its own HTML apart from a hand-written
   // file at the same path. A missing file is reported by copyOutput.

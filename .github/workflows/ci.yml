@@ -92,8 +92,9 @@ jobs:
         run: pnpm test
 
       # On Linux the same tests run with coverage and the report lands in the
-      # job summary. Report only, no threshold, until #71 makes the total
-      # meaningful.
+      # job summary. The total covers the pipeline itself since #71; it stays
+      # report-only, with no threshold, so an unrelated change cannot fail CI
+      # on a percentage.
       - name: Test with coverage
         if: runner.os == 'Linux'
         shell: bash
