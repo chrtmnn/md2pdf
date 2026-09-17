@@ -35,7 +35,7 @@
     /* page options, margins (top right bottom left) */
     --page-size: A4;
     --page-top-left-content: unset;
-    --page-top-center-content: unset;;
+    --page-top-center-content: unset;
     --page-top-right-content: unset;
     --page-bottom-left-content: unset;
     --page-bottom-center-content: counter(page) "/" counter(pages);
