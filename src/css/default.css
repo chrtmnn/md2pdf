@@ -34,6 +34,9 @@
 
     /* page options, margins (top right bottom left) */
     --page-size: A4;
+    --page-top-left-content: unset;
+    --page-top-center-content: unset;
+    --page-top-right-content: unset;
     --page-bottom-left-content: unset;
     --page-bottom-center-content: counter(page) "/" counter(pages);
     --page-bottom-right-content: unset;
@@ -46,12 +49,27 @@
 }
 
 @page {
-    font-family: var(--font-text-full), "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-text-full), sans-serif;
     size: var(--page-size);
     margin: var(--page-margin);
 }
 
 @page {
+    @top-left {
+        content: var(--page-top-left-content, unset);
+        font-size: 9pt;
+        color: var(--color-muted);
+    }
+    @top-center {
+        content: var(--page-top-center-content, unset);
+        font-size: 9pt;
+        color: var(--color-muted);
+    }
+    @top-right {
+        content: var(--page-top-right-content, unset);
+        font-size: 9pt;
+        color: var(--color-muted);
+    }
     @bottom-left {
         content: var(--page-bottom-left-content, unset);
         font-size: 9pt;
@@ -70,7 +88,7 @@
 }
 
 html {
-    font-family: var(--font-text-full), "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-text-full), sans-serif;
     font-size: var(--font-size);
 }
 

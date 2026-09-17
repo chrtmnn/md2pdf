@@ -374,9 +374,14 @@ Two pre-existing gaps that the hoisting does **not** close, because the `@import
 | `--page-margin-top` / `-right` / `-bottom` / `-left` | `1.6cm` / `1.6cm` / `1.6cm` / `2.4cm` | Individual page margins (A4) |
 | `--page-margin` | composed from the four individual margins | Shorthand to set all four margins at once |
 | `--page-size` | `A4` | `@page` size, e.g. `A5`, `letter`, `A4 landscape` |
+| `--page-top-left-content` / `-center-` / `-right-` | `unset` | Content of the three `@top-*` margin boxes |
+| `--page-bottom-left-content` / `-right-` | `unset` | Content of the outer two `@bottom-*` margin boxes |
+| `--page-bottom-center-content` | `counter(page) "/" counter(pages)` | Content of `@bottom-center`, the default page number |
 | `--document-break-before` | `page` | Page break before each document combined with `--merge` |
 
 To enable per-heading page breaks: `--css-var heading-break-before=page`.
+
+The six `--page-*-content` variables fill the `@page` margin boxes and take a CSS `content` value, not plain text, so literal header text has to be quoted: `--css-var page-top-right-content='"Draft"'`. An unquoted value is not a valid `content` value, so the box renders empty and **nothing warns** — the stylesheet does read the variable, so `findUnusedCssVars` stays quiet. Chromium honours these boxes (verified against a rendered PDF), which is what makes the `@bottom-center` page counter work without Puppeteer's `displayHeaderFooter`. See *Page Headers and Footers* in the README for the user-facing description.
 
 One variable per concept since #59: `default.css` used to define a legacy `page-break-before` and a modern `break-before` property per concept, so a break took two flags that had to agree. Chromium — the only renderer involved — honours `break-before`, so the legacy properties are gone. The retired names are still accepted for a transition period: `translateLegacyCssVars` (`option-values.ts`) rewrites them, mapping the value `always` to `page`, and each translation is reported as a warning through `ConverterOptions.cssVarWarnings`, which `pipeline.ts` prints.
 
