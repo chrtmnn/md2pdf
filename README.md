@@ -23,6 +23,7 @@ The command shows a compact progress view, refreshes an existing doctoc table of
   - [Merging Into One PDF](#merging-into-one-pdf)
   - [Personal Stylesheets](#personal-stylesheets)
   - [Manual Page Breaks](#manual-page-breaks)
+  - [Page Headers and Footers](#page-headers-and-footers)
   - [Table of Contents Markers](#table-of-contents-markers)
   - [Mermaid Diagram Syntax](#mermaid-diagram-syntax)
 
@@ -272,6 +273,34 @@ The default stylesheet exposes a `.page-break` helper that forces a page break b
 ```
 
 The helper sets `display: block` internally, so inline elements work too. The marker is invisible in the rendered PDF and is ignored by Markdown viewers that do not honour the class.
+
+### Page Headers and Footers
+
+The default stylesheet fills the six `@page` margin boxes from custom properties, so a running header or footer needs no change to the stylesheet itself — only `--css-var`:
+
+| Variable | Default |
+|---|---|
+| `--page-top-left-content` | `unset` |
+| `--page-top-center-content` | `unset` |
+| `--page-top-right-content` | `unset` |
+| `--page-bottom-left-content` | `unset` |
+| `--page-bottom-center-content` | `counter(page) "/" counter(pages)` |
+| `--page-bottom-right-content` | `unset` |
+
+Every page therefore carries a centred page-of-total footer such as `2/7`, and the remaining five boxes stay empty until they are given content.
+
+```powershell
+md2pdf --css-var page-top-right-content='"Internal draft"' report.md
+md2pdf --css-var page-bottom-center-content='"Page " counter(page)' report.md
+md2pdf --css-var page-bottom-center-content=unset report.md   # no page numbers
+```
+
+Each value is a CSS `content` value, not plain text, which has two consequences:
+
+- **Literal text has to be quoted.** `page-top-right-content=Draft` is not a valid `content` value, so the box renders empty and nothing warns about it — the variable *is* read by the stylesheet, so the unused-variable check stays quiet. Quote it as `'"Draft"'` in PowerShell and bash alike.
+- `counter(page)` and `counter(pages)` give the current page and the page total, and concatenate with quoted strings by writing them next to each other, as in the second example above.
+
+Box content renders at 9pt in `--color-muted`, inside the page margin set by `--page-margin-top` and `--page-margin-bottom`. A custom stylesheet passed with `-s` replaces the bundled one entirely (see [Personal Stylesheets](#personal-stylesheets)), so it needs its own `@page` margin box rules for any of this to apply.
 
 ### Table of Contents Markers
 
