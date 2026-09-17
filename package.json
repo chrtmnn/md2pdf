@@ -28,7 +28,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chrtmnn/chrtmnns-md-scripts.git"
+    "url": "git+https://github.com/chrtmnn/md2pdf.git"
   },
   "keywords": [
     "markdown",
@@ -40,9 +40,9 @@
   "author": "C.J. Hartmann <c@hrtmnn.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/chrtmnn/chrtmnns-md-scripts/issues"
+    "url": "https://github.com/chrtmnn/md2pdf/issues"
   },
-  "homepage": "https://github.com/chrtmnn/chrtmnns-md-scripts#readme",
+  "homepage": "https://github.com/chrtmnn/md2pdf#readme",
   "dependencies": {
     "@clack/prompts": "1.8.1",
     "@mermaid-js/mermaid-cli": "11.17.0",

@@ -1,4 +1,4 @@
-# chrtmnn's md scripts
+# md2pdf
 
 Convert Markdown files to PDF from any terminal with one command:
 
