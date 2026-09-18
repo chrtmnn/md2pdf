@@ -1,6 +1,6 @@
 {
   "name": "@chrtmnn/md2pdf",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Convert Markdown to PDF from any terminal, with a table of contents and Mermaid diagrams",
   "bin": {
     "md2pdf": "dist/md2pdf.js"
