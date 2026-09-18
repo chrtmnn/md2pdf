@@ -9,6 +9,7 @@
 import path from 'path';
 import { findFrontmatterEnd } from './markdown-scan';
 import { NATIVE_PATH_RULES, PathRules, comparisonKey } from './path-rules';
+import { DOCTOC_END_MARKER, DOCTOC_MARKER } from './toc-placement';
 
 /**
  * Separator inserted between two consecutive source documents in a merged
@@ -159,4 +160,42 @@ export function joinDocuments(documents: string[]): string {
     });
 
   return `${sections.join('\n\n')}\n`;
+}
+
+/**
+ * Puts an empty doctoc marker pair in front of the merged documents, so
+ * `--merge` with `--toc` builds one table of contents ahead of all of them
+ * instead of relocating it before the first `##` heading of the first
+ * document.
+ *
+ * START and END must be on lines of their own: on one line doctoc does not
+ * recognise the pair and prepends a second table of contents. A document
+ * break follows the pair, so the first document starts on a page of its own
+ * just like every later one.
+ *
+ * The first document's frontmatter stays at the very top, where md-to-pdf
+ * parses it.
+ *
+ * @param content - Merged Markdown contents, from {@link joinDocuments}.
+ * @returns The contents with the marker pair and a document break in front
+ *   of the first document.
+ */
+export function prependTocMarkers(content: string): string {
+  const lines = content.split('\n');
+  const frontmatterEnd = findFrontmatterEnd(lines.map((line) => line.replace(/\r$/, '')));
+  const head = lines.slice(0, frontmatterEnd + 1);
+  const rest = lines
+    .slice(frontmatterEnd + 1)
+    .join('\n')
+    .replace(/^\s+/, '');
+  const block = [
+    `${DOCTOC_MARKER} please keep comment here to allow auto update -->`,
+    DOCTOC_END_MARKER,
+    '',
+    DOCUMENT_BREAK_HTML,
+    '',
+    rest,
+  ];
+
+  return (head.length > 0 ? [...head, '', ...block] : block).join('\n');
 }

@@ -3,7 +3,8 @@ import os from 'os';
 import path from 'path';
 import { ConverterOptions } from '../types';
 import { absolutizeImageTargets } from './inline-assets';
-import { commonAncestorDirectory, joinDocuments, removeFrontmatter } from './merge-assembly';
+import { removeDoctocBlocks } from './doctoc-markers';
+import { commonAncestorDirectory, joinDocuments, prependTocMarkers, removeFrontmatter } from './merge-assembly';
 import { NATIVE_PATH_RULES, PathRules, comparisonKey } from './path-rules';
 import { stripBom } from './markdown-scan';
 
@@ -64,15 +65,40 @@ function createMergeDirectory(options: ConverterOptions, targetDir: string): str
  * the last moment at which each section's own directory is still known, and
  * `inlineAssets` later embeds those absolute paths as `data:` URIs.
  *
+ * With `--toc` the document's own doctoc blocks are removed: the merged file
+ * gets one table of contents in front of all documents instead.
+ *
  * @param file - Absolute path of the source Markdown file.
  * @param isFirst - Whether this is the first document of the merge.
- * @returns The normalised body and whether frontmatter had to be dropped.
+ * @param removeToc - Whether to remove the document's doctoc blocks.
+ * @returns The normalised body, whether frontmatter had to be dropped, and
+ *   whether a doctoc block was removed.
+ * @throws When the document has a doctoc START marker without an END marker.
  */
-function readDocument(file: string, isFirst: boolean): { body: string; droppedFrontmatter: boolean } {
+function readDocument(
+  file: string,
+  isFirst: boolean,
+  removeToc: boolean,
+): { body: string; droppedFrontmatter: boolean; droppedToc: boolean } {
   const raw = stripBom(fs.readFileSync(file, 'utf8')).trimEnd();
   const { body, removed } = isFirst ? { body: raw, removed: false } : removeFrontmatter(raw);
+  let withoutToc = { body, removed: 0 };
 
-  return { body: absolutizeImageTargets(body, path.dirname(file)), droppedFrontmatter: removed };
+  if (removeToc) {
+    try {
+      withoutToc = removeDoctocBlocks(body);
+    } catch (error) {
+      throw new Error(
+        `${file}: ${(error as Error).message}. Add the missing marker or remove the stray one; the file was left unchanged.`,
+      );
+    }
+  }
+
+  return {
+    body: absolutizeImageTargets(withoutToc.body.trimEnd(), path.dirname(file)),
+    droppedFrontmatter: removed,
+    droppedToc: withoutToc.removed > 0,
+  };
 }
 
 /**
@@ -80,8 +106,8 @@ function readDocument(file: string, isFirst: boolean): { body: string; droppedFr
  * file so the existing pipeline can run over it exactly once.
  *
  * No PDF-merging library is involved: merging before rendering keeps the
- * pipeline unchanged and lets `--force-doctoc` build one table of contents
- * spanning every document.
+ * pipeline unchanged and lets `--toc` build one table of contents spanning
+ * every document, in front of the first one (see {@link prependTocMarkers}).
  *
  * Relative asset handling: image targets **are** rewritten, to the absolute
  * path they resolve to inside their own source document's directory. The
@@ -141,7 +167,8 @@ export function mergeMarkdown(
     );
   }
 
-  const documents = existing.map((file, index) => readDocument(file, index === 0));
+  const buildToc = options.toc === 'always';
+  const documents = existing.map((file, index) => readDocument(file, index === 0, buildToc));
   const droppedFrontmatter = documents.filter((document) => document.droppedFrontmatter).length;
 
   if (droppedFrontmatter > 0) {
@@ -150,7 +177,16 @@ export function mergeMarkdown(
     );
   }
 
-  const content = joinDocuments(documents.map((document) => document.body));
+  const droppedToc = documents.filter((document) => document.droppedToc).length;
+
+  if (droppedToc > 0) {
+    warnings.push(
+      `Removed the table of contents of ${droppedToc} document${droppedToc === 1 ? '' : 's'}: --toc puts one table of contents in front of the merged documents.`,
+    );
+  }
+
+  const joined = joinDocuments(documents.map((document) => document.body));
+  const content = buildToc ? prependTocMarkers(joined) : joined;
 
   fs.mkdirSync(targetDir, { recursive: true });
   const mergeDir = createMergeDirectory(options, targetDir);

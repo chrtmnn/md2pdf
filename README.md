@@ -208,7 +208,7 @@ This writes `handbook.pdf`. The `.pdf` suffix is optional, so `--merge handbook.
 
 Merging happens on the Markdown, before rendering, and the normal conversion then runs once over the combined document. Two consequences are worth knowing:
 
-- All other options still apply. In particular `--toc` produces **one** table of contents spanning every document, which is usually the main reason to merge in the first place.
+- All other options still apply. In particular `--toc` produces **one** table of contents spanning every document, which is usually the main reason to merge in the first place. It is placed on its own page in front of the first document, and the documents' own tables of contents are left out of the merged PDF (the source files are not changed).
 - Each document starts on a new page. The page break is produced by the `.document-break` helper in the default stylesheet. If you pass your own stylesheet with `-s`, add a matching rule or the documents will run together. To flatten the breaks, use `--css-var document-break-before=auto`.
 
 > **Limitation**: relative **link** targets are not rewritten when documents are merged, so a link written relative to a subfolder may not point anywhere useful in the merged PDF. Relative **image** targets are fine: each one is resolved against its own source document while the documents are concatenated, so two documents in different folders can both use `images/logo.png`. `md2pdf` prints a warning whenever the merged inputs come from more than one folder.

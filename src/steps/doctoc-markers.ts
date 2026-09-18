@@ -150,6 +150,48 @@ export function scanDoctocMarkers(raw: string): DoctocMarkers {
 }
 
 /**
+ * Removes every genuine doctoc block — the START and END marker lines and
+ * everything between them — from a document. `--merge` with `--toc` puts one
+ * table of contents in front of all merged documents, so the documents' own
+ * blocks have to go before doctoc runs over the merged file.
+ *
+ * Documented markers (in fences, inline code or comments) are left alone. A
+ * genuine END marker without a START before it is dropped as well, so it
+ * cannot pair up with anything later.
+ *
+ * @param raw - Full Markdown document contents.
+ * @returns The document without its doctoc blocks, and how many were removed.
+ * @throws When a genuine START marker has no END marker after it, because the
+ *   extent of that block is unknown.
+ */
+export function removeDoctocBlocks(raw: string): { body: string; removed: number } {
+  const lines = splitLines(raw);
+  const markers = genuineMarkers(bareLines(lines));
+  const kept: string[] = [];
+  let openAt = -1;
+  let removed = 0;
+
+  lines.forEach((line, i) => {
+    if (markers[i] === 'start') {
+      openAt = openAt === -1 ? i : openAt;
+    } else if (markers[i] === 'end') {
+      if (openAt !== -1) {
+        openAt = -1;
+        removed++;
+      }
+    } else if (openAt === -1) {
+      kept.push(line);
+    }
+  });
+
+  if (openAt !== -1) {
+    throw new Error(`doctoc START marker on line ${openAt + 1} has no END marker`);
+  }
+
+  return { body: kept.join('\n'), removed };
+}
+
+/**
  * Formats the warning for `-u` on a document whose marker scan is `none`:
  * `-u` only refreshes an existing block and never adds one to the source, so
  * the flag has no effect on that file (#60).
