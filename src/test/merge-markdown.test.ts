@@ -14,7 +14,9 @@ import test, { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { DOCUMENT_BREAK_HTML } from '../steps/merge-assembly';
 import { MergedInput, mergeMarkdown } from '../steps/merge-markdown';
+import { scanDoctocMarkers } from '../steps/doctoc-markers';
 import { NATIVE_PATH_RULES, POSIX_PATH_RULES, PathRules, WINDOWS_PATH_RULES } from '../steps/path-rules';
+import { DOCTOC_END_MARKER, DOCTOC_MARKER } from '../steps/toc-placement';
 import { ConverterOptions } from '../types';
 import { comparablePath, makeOptions, removeAfter, tempDir, writePng, writeFile } from './helpers';
 
@@ -253,5 +255,47 @@ test('the multi-directory warning compares directories per the platform rules (#
     merge(t, [a, b], makeOptions({ merge: 'combined' }), POSIX_PATH_RULES).warnings.length,
     1,
     'POSIX rules see two directories',
+  );
+});
+
+test('--toc replaces the documents own tables of contents with one in front of them', (t) => {
+  const dir = tempDir(t);
+  const start = `${DOCTOC_MARKER} please keep comment here to allow auto update -->`;
+  const a = writeFile(dir, 'a.md', `# A\n\n${start}\n\n- [Old A](#old-a)\n\n${DOCTOC_END_MARKER}\n\n## A1\n`);
+  const b = writeFile(dir, 'b.md', `# B\n\n${start}\n- [Old B](#old-b)\n${DOCTOC_END_MARKER}\n\nBody B.\n`);
+  const c = writeFile(dir, 'c.md', '# C\n\n```\n' + `${start}\n${DOCTOC_END_MARKER}\n` + '```\n');
+
+  const result = merge(t, [a, b, c], makeOptions({ merge: 'combined', toc: 'always' }));
+  const merged = fs.readFileSync(result.mergedFile, 'utf8');
+
+  assert.equal(merged.startsWith(`${start}\n${DOCTOC_END_MARKER}\n\n${DOCUMENT_BREAK_HTML}\n\n# A\n`), true);
+  assert.equal(merged.includes('Old A'), false);
+  assert.equal(merged.includes('Old B'), false);
+  assert.equal(merged.includes('```\n' + `${start}\n${DOCTOC_END_MARKER}\n` + '```'), true, 'documented example kept');
+  assert.deepEqual(scanDoctocMarkers(merged), { kind: 'pair', startIndex: 0, endIndex: 1 });
+  assert.deepEqual(result.warnings, [
+    'Removed the table of contents of 2 documents: --toc puts one table of contents in front of the merged documents.',
+  ]);
+});
+
+test('without --toc a merge leaves the documents tables of contents alone', (t) => {
+  const dir = tempDir(t);
+  const start = `${DOCTOC_MARKER} please keep comment here to allow auto update -->`;
+  const source = `# A\n\n${start}\n- [A1](#a1)\n${DOCTOC_END_MARKER}\n\n## A1\n`;
+  const a = writeFile(dir, 'a.md', source);
+
+  const merged = fs.readFileSync(merge(t, [a], makeOptions({ merge: 'combined' })).mergedFile, 'utf8');
+
+  assert.equal(merged, source);
+});
+
+test('--toc fails the merge on a document with a START marker but no END marker', (t) => {
+  const dir = tempDir(t);
+  const a = writeFile(dir, 'a.md', '# A\n');
+  const b = writeFile(dir, 'b.md', `# B\n\n${DOCTOC_MARKER} please keep comment here to allow auto update -->\n\nBody.\n`);
+
+  assert.throws(
+    () => merge(t, [a, b], makeOptions({ merge: 'combined', toc: 'always', tempRoot: dir })),
+    /b\.md: doctoc START marker on line 3 has no END marker/,
   );
 });

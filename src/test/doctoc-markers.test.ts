@@ -16,6 +16,7 @@ import {
   describeMissingMarkerBlock,
   isTocOnlyRefresh,
   maskDocumentedMarkers,
+  removeDoctocBlocks,
   scanDoctocMarkers,
   unmaskDocumentedMarkers,
 } from '../steps/doctoc-markers';
@@ -198,6 +199,42 @@ test('isTocOnlyRefresh accepts a changed TOC block and rejects any other change'
   assert.equal(isTocOnlyRefresh(before, doc(['# Title', '', START, '- new', END])), false);
   assert.equal(isTocOnlyRefresh(before, doc(['# Title', '', START, '- new'])), false);
   assert.equal(isTocOnlyRefresh(doc(['# Title']), refreshed), false);
+});
+
+test('removeDoctocBlocks removes every genuine block and keeps documented markers', () => {
+  const input = doc([
+    '# Title',
+    START,
+    DONT_EDIT,
+    '- [Old](#old)',
+    END,
+    '## A',
+    '```',
+    START,
+    END,
+    '```',
+    START,
+    '- second',
+    END,
+    'Tail.',
+  ]);
+
+  const result = removeDoctocBlocks(input);
+
+  assert.equal(result.removed, 2);
+  assert.equal(result.body, doc(['# Title', '## A', '```', START, END, '```', 'Tail.']));
+});
+
+test('removeDoctocBlocks drops a lone END marker and rejects a START without END', () => {
+  assert.deepEqual(removeDoctocBlocks(doc(['# Title', END, 'Body.'])), { body: doc(['# Title', 'Body.']), removed: 0 });
+  assert.deepEqual(removeDoctocBlocks(doc(['# Title'])), { body: doc(['# Title']), removed: 0 });
+  assert.throws(() => removeDoctocBlocks(doc(['# Title', '', START, '- x'])), /START marker on line 3 has no END marker/);
+});
+
+test('removeDoctocBlocks keeps CRLF line endings', () => {
+  const result = removeDoctocBlocks(doc(['# Title', START, '- x', END, 'Body.'], '\r\n'));
+
+  assert.equal(result.body, doc(['# Title', 'Body.'], '\r\n'));
 });
 
 test('describeMissingMarkerBlock names the file and offers -f only when it is not given (#60)', () => {
