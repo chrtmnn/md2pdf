@@ -171,23 +171,39 @@ li {
 }
 
 /* =========================
-   Prevent page breaks
-   ONLY for nested lists
-   (level >= 2)
+   List page breaks
    ========================= */
 
-ul ul,
-ol ol,
-ul ol,
-ol ul {
+/* No break-inside: avoid on every nested list: a long one — typically a
+   table of contents — was pushed to the next page as one block, which left
+   the page before it nearly empty and a parent entry alone at its bottom. */
+
+/* An entry without a sub-list never splits across pages. */
+li:not(:has(> ul, > ol)) {
     page-break-inside: avoid;
     break-inside: avoid;
 }
 
-ul ul > li,
-ol ol > li,
-ul ol > li,
-ol ul > li {
+/* A paragraph introducing a list, such as the doctoc caption, stays with
+   its first entries. */
+p:has(+ ul, + ol) {
+    page-break-after: avoid;
+    break-after: avoid;
+}
+
+/* A parent entry stays with its first two sub-entries, and the last
+   sub-entry never starts a page alone. */
+li > ul,
+li > ol,
+li > :is(ul, ol) > li:nth-child(2),
+li > :is(ul, ol) > li:last-child {
+    page-break-before: avoid;
+    break-before: avoid;
+}
+
+/* Keep short sub-lists (at most 5 entries, none nested further) on one
+   page. As for tables, the threshold is the literal in -n+5. */
+li > :is(ul, ol):has(> li:last-child:nth-child(-n+5)):not(:has(ul, ol)) {
     page-break-inside: avoid;
     break-inside: avoid;
 }
