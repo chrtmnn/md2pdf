@@ -59,6 +59,35 @@ const MKDTEMP_SUFFIX = '_XXXXXX'.length;
 const MIN_TEMP_STEM = 8;
 
 /**
+ * Characters a temp name keeps as they are: letters, combining marks, digits
+ * and `._-`. Anything else becomes `_`.
+ */
+const UNSAFE_TEMP_CHAR_RE = /[^\p{L}\p{M}\p{N}._-]/gu;
+
+/**
+ * Replaces the characters in a file stem that would break a link to a file
+ * named after it.
+ *
+ * mermaid-cli names its assets after the converted Markdown file and links
+ * them with a bare destination, `![diagram](./<stem>_converted-1.svg)`
+ * (#84). A space ends a bare CommonMark destination, so for `my first doc.md`
+ * the link pointed at `./my` and the diagram was missing from the PDF. `#`,
+ * `?` and `%` change the meaning of the URL the browser loads the asset from,
+ * even inside `<…>`, and `()<>\` can break the Markdown syntax itself.
+ * Letters in any script are kept, so a work directory kept with
+ * `--keep-temp` is still recognisable.
+ *
+ * Only *temp* names are sanitized; the output PDF and the document title keep
+ * the original stem.
+ *
+ * @param stem - Source file name without its extension.
+ * @returns The stem with every unsafe character replaced by `_`.
+ */
+export function sanitizeStemForTemp(stem: string): string {
+  return stem.replace(UNSAFE_TEMP_CHAR_RE, '_');
+}
+
+/**
  * Shortens a file stem so the temp directory and the temp files derived from
  * it stay inside the platform's limits.
  *

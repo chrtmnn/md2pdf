@@ -529,6 +529,59 @@ test('a failing run-level step aborts the whole run and says which one', (t) => 
   assert.equal(run.reporter.outro(), undefined, 'no summary is printed for a run that never ran');
 });
 
+/**
+ * A mermaid-cli stand-in that names and links its assets the way the real
+ * `mmdc -i <in> -o <out.md>` does: `<out>-<n>.svg` next to the output file,
+ * linked with a bare destination, `![diagram](./<out>-<n>.svg)` (#84).
+ */
+const mmdcLikeMermaid: FakeToolBehaviour = {
+  mermaidCli: (args) => {
+    const input = args[args.indexOf('-i') + 1];
+    const output = args[args.indexOf('-o') + 1];
+    let count = 0;
+    const converted = fs.readFileSync(input, 'utf8').replace(/```mermaid\n[\s\S]*?```/g, () => {
+      count += 1;
+      const asset = `${path.parse(output).name}-${count}.svg`;
+      fs.writeFileSync(path.join(path.dirname(output), asset), '<svg xmlns="http://www.w3.org/2000/svg"/>', 'utf8');
+      return `![diagram](./${asset})`;
+    });
+    fs.writeFileSync(output, converted, 'utf8');
+  },
+};
+
+test('a Mermaid diagram resolves when the file name contains spaces (#84)', (t) => {
+  const dir = path.join(tempDir(t), 'my docs');
+  const file = writeFile(dir, 'my first doc.md', '# Doc\n\n```mermaid\ngraph TD; A-->B\n```\n');
+
+  const run = runFixture(t, [file], { tempRoot: path.join(dir, 'temp dir') }, mmdcLikeMermaid);
+
+  assert.equal(run.code, 0);
+  assert.equal(run.reporter.has('warn', 'Asset not found'), false, 'the diagram link resolves');
+  assert.equal(fs.existsSync(path.join(dir, 'my first doc.pdf')), true, 'the PDF keeps the original name');
+  assert.ok(run.tools.callsTo('mdToPdf')[0].args.includes('--document-title=Doc'));
+});
+
+test('a Mermaid diagram resolves when the --merge name contains spaces (#84)', (t) => {
+  const dir = path.join(tempDir(t), 'my docs');
+  const first = writeFile(dir, 'my first doc.md', '# A\n\n```mermaid\ngraph TD; A-->B\n```\n');
+  const second = writeFile(dir, 'my second doc.md', '# B\n');
+
+  const run = runFixture(
+    t,
+    [first, second],
+    { merge: 'my handbook', tempRoot: path.join(dir, 'temp') },
+    mmdcLikeMermaid,
+  );
+
+  assert.equal(run.code, 0);
+  assert.equal(run.reporter.has('warn', 'Asset not found'), false, 'the diagram link resolves');
+  assert.equal(run.reporter.outro(), '2 merged into my handbook.pdf');
+  assert.ok(
+    run.tools.callsTo('mdToPdf')[0].args.includes('--document-title=my handbook'),
+    'the merge name stays the document title',
+  );
+});
+
 test('--keep-temp also keeps the merged Markdown', (t) => {
   const dir = tempDir(t);
   const first = writeFile(dir, 'a.md', '# A\n');
