@@ -52,7 +52,7 @@ test('leaves the document untouched when it has no h2-equivalent heading', () =>
   assert.equal(relocateTocBeforeFirstH2(input), input);
 });
 
-test('leaves the document untouched when there is no doctoc block', () => {
+test('leaves the document untouched when there is no TOC block', () => {
   const input = doc(['# Title', '', 'Intro.', '', '## Second']);
 
   assert.equal(relocateTocBeforeFirstH2(input), input);

@@ -75,13 +75,20 @@ function replaceLine(line: string, text: string): string {
  * @returns The bare text.
  */
 function bare(line: string): string {
-  return line.replace(/^﻿/, '').replace(/\r$/, '').trimStart();
+  return (line.startsWith(BOM) ? line.slice(BOM.length) : line).replace(/\r$/, '').trimStart();
 }
 
 /**
  * Prepares a document for doctoc: every doctoc marker outside the block is
  * masked, and the block's marker lines become doctoc's unless they already are.
- * Line count and every other byte stay unchanged.
+ * Every other byte stays unchanged.
+ *
+ * A translated START line is followed by doctoc's note line, the one line the
+ * prepared document gains. doctoc 2.5 assumes the note is there: it treats the
+ * START marker as reaching to the end of the note and only looks for the
+ * previous title after it, so without the note a block's title is lost on
+ * every refresh. doctoc up to 2.3 reads the line two below START as the title.
+ * {@link readDoctocOutput} drops the note again.
  *
  * Masking *every* doctoc marker but the block, rather than only documented
  * ones, also hides a second genuine block and a stray END line, so doctoc can
@@ -102,7 +109,11 @@ export function prepareDoctocInput(markdown: string, block?: TocBlock): string {
     .split('\n')
     .map((line, i) => {
       if (i === block?.startIndex) {
-        return DOCTOC_MARKER_ENTRY.start.test(bare(line)) ? line : replaceLine(line, DOCTOC_START_LINE);
+        if (DOCTOC_MARKER_ENTRY.start.test(bare(line))) {
+          return line;
+        }
+        const cr = line.endsWith('\r') ? '\r' : '';
+        return `${replaceLine(line, DOCTOC_START_LINE)}\n${DOCTOC_NOTE_LINE}${cr}`;
       }
       if (i === block?.endIndex) {
         return DOCTOC_MARKER_ENTRY.end.test(bare(line)) ? line : replaceLine(line, DOCTOC_END_LINE);
@@ -121,11 +132,19 @@ export function prepareDoctocInput(markdown: string, block?: TocBlock): string {
  * dropped: the block no longer belongs to doctoc as far as the document author
  * is concerned, and doctoc does not need the note to refresh it next time.
  *
+ * Every doctoc marker but the block's is masked, so the output holds exactly
+ * one unmasked START line — unless doctoc did not recognise the translated
+ * block (a marker inside another HTML block such as `<details>` is no HTML
+ * node of its own) and created a second one. Under a requested marker that
+ * fails the file instead of renaming the wrong block; a doctoc-marked block
+ * keeps doctoc's pre-#83 behaviour of a new block at the top.
+ *
  * @param output - The document as doctoc left it.
  * @param markers - The marker lines the block must carry; absent to keep doctoc's.
  * @returns The finished document and where its block is; no block when doctoc
  *   wrote none (a document without headings, or with `<!-- DOCTOC SKIP -->`).
- * @throws When doctoc left an unfinished block behind.
+ * @throws When doctoc left an unfinished block behind, or did not fill the
+ *   block it was asked to fill under a requested marker.
  */
 export function readDoctocOutput(output: string, markers?: { start: string; end: string }): TocResult {
   const found = scanTocMarkers(output, [DOCTOC_MARKER_ENTRY]);
@@ -140,6 +159,11 @@ export function readDoctocOutput(output: string, markers?: { start: string; end:
   let { startIndex, endIndex } = found;
   if (markers) {
     const lines = output.split('\n');
+    if (lines.filter((line) => DOCTOC_MARKER_ENTRY.start.test(bare(line))).length > 1) {
+      throw new Error(
+        'doctoc did not recognise the table of contents block (is it inside another HTML block?) and created another one',
+      );
+    }
     lines[startIndex] = replaceLine(lines[startIndex], markers.start);
     lines[endIndex] = replaceLine(lines[endIndex], markers.end);
     if (startIndex + 1 < endIndex && bare(lines[startIndex + 1]) === DOCTOC_NOTE_LINE) {
@@ -167,8 +191,14 @@ export const DOCTOC_BACKEND: TocBackend = {
   name: 'doctoc',
   nativeMarker: DOCTOC_MARKER_ENTRY,
   generate({ markdown, block, markers, file, options, run }: TocRequest): TocResult {
-    fs.writeFileSync(file, prepareDoctocInput(markdown, block));
+    // doctoc 2.5's parser drops a leading BOM and then splices with offsets
+    // that are one character off: it eats the line break before the block, or
+    // the last character of a heading right above it. The BOM is detached for
+    // the run and put back; it changes no line index.
+    const bom = markdown.startsWith(BOM) ? BOM : '';
+    fs.writeFileSync(file, prepareDoctocInput(markdown.slice(bom.length), block));
     run('doctoc', [file], options);
-    return readDoctocOutput(fs.readFileSync(file, 'utf8'), markers);
+    const result = readDoctocOutput(fs.readFileSync(file, 'utf8'), markers);
+    return { ...result, markdown: bom + result.markdown };
   },
 };

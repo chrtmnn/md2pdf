@@ -87,7 +87,10 @@ export function runToc(
   const block = markers.kind === 'pair' ? { startIndex: markers.startIndex, endIndex: markers.endIndex } : undefined;
   let requested: { start: string; end: string } | undefined = OWN_TOC_MARKER;
   if (markers.kind === 'pair') {
-    requested = markers.entry === backend.nativeMarker ? undefined : markerLines(source, markers.startIndex, markers.endIndex);
+    requested =
+      markers.entry.name === backend.nativeMarker.name
+        ? undefined
+        : markerLines(source, markers.startIndex, markers.endIndex);
   }
 
   context.inputMarkdown = path.join(context.workdir, context.baseName);

@@ -70,9 +70,10 @@ export interface TocBackend {
   /** Name used in messages, e.g. `doctoc`. */
   readonly name: string;
   /**
-   * The registry entry whose blocks the backend writes itself. A block with
-   * this marker is filled without a `markers` request, so the tool's own
-   * output stays exactly what it was before the backend abstraction existed.
+   * The registry entry whose blocks the backend writes itself, matched by
+   * `name`. A block with this marker is filled without a `markers` request,
+   * so the tool's own output stays what it was before the backend
+   * abstraction existed.
    */
   readonly nativeMarker: TocMarkerEntry;
   /**

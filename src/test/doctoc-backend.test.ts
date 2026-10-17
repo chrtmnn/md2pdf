@@ -204,3 +204,54 @@ test('the backend runs doctoc on the scratch file it is given', (t) => {
   assert.match(result.markdown, /\[First\]\(#first\)/);
   assert.ok(fs.existsSync(file));
 });
+
+test('an own-marker block keeps its title on refresh (#83)', () => {
+  const input = doc(['# T', '', OWN_START, '**Contents**', '', '- old', '', OWN_END, '', '## A']);
+
+  const { markdown } = roundTrip(input, OWN_TOC_MARKER);
+
+  assert.ok(markdown.includes(`${OWN_START}\n**Contents**\n\n- [A](#a)\n\n${OWN_END}`), markdown);
+  assert.equal(markdown.includes(DOCTOC_NOTE_LINE), false);
+});
+
+test('the title doctoc gives a new block survives the next refresh (#83)', () => {
+  const once = roundTrip(doc(['# T', '', '## A']), OWN_TOC_MARKER).markdown;
+  const twice = roundTrip(once, OWN_TOC_MARKER).markdown;
+
+  assert.match(once, /\*\*Table of Contents\*\*/);
+  assert.equal(twice, once);
+});
+
+test('a block doctoc does not recognise is reported, not duplicated (#83)', () => {
+  const input = doc(['# T', '', '<details>', OWN_START, OWN_END, '</details>', '', '## A']);
+
+  assert.throws(
+    () => roundTrip(input, OWN_TOC_MARKER),
+    /doctoc did not recognise the table of contents block \(is it inside another HTML block\?\)/,
+  );
+});
+
+test('a leading BOM is kept out of doctoc and put back, for either marker (#83)', (t) => {
+  const bom = String.fromCharCode(0xfeff);
+  const file = path.join(tempDir(t), 'doc.md');
+  const generate = (markdown: string, markers?: { start: string; end: string }) => {
+    const found = scanTocMarkers(markdown);
+    return DOCTOC_BACKEND.generate({
+      markdown,
+      block: found.kind === 'pair' ? { startIndex: found.startIndex, endIndex: found.endIndex } : undefined,
+      markers,
+      file,
+      options: makeOptions(),
+      run: createFakeTools({ doctoc: inProcessDoctoc }).run,
+    }).markdown;
+  };
+
+  const own = generate(`${bom}${doc(['# T', '', OWN_START, OWN_END, '', '## A'])}`, OWN_TOC_MARKER);
+  assert.equal(own, `${bom}${doc(['# T', '', OWN_START, '', '- [A](#a)', '', OWN_END, '', '## A'])}`);
+
+  const doctoc = generate(`${bom}${doc(['# T', '', START, END, '', '## A'])}`);
+  assert.equal(doctoc, `${bom}${doc(['# T', '', START, DOCTOC_NOTE_LINE, '', '- [A](#a)', '', END, '', '## A'])}`);
+
+  const tight = generate(`${bom}${doc(['# Title', START, END, '', '## A'])}`);
+  assert.ok(tight.startsWith(`${bom}# Title\n`), 'the heading above the block keeps its last character');
+});

@@ -327,12 +327,12 @@ On the next conversion, the block is filled with the current heading structure (
 
 Rules that apply to every marker:
 
-- Only a marker block written on its own lines counts. The `md2pdf` marker must match exactly (case-sensitive, nothing else on the line), so markdown-toc's `<!-- toc -->` is not mistaken for it. Markers that merely appear as examples, inside a code block or in inline code like the ones above, are ignored and stay intact.
+- Only a marker block written on its own lines counts. The `md2pdf` marker must match exactly (case-sensitive; up to three spaces of indentation and trailing spaces are fine, nothing else), so markdown-toc's `<!-- toc -->` is not mistaken for it. Markers that merely appear as examples, inside a code block or in inline code like the ones above, are ignored and stay intact.
 - If a file has several marker blocks, only the first one is filled; the others are left as they are.
 - If a file has a START marker without a matching END marker after it, the conversion of that file fails with an error and the file is left untouched. Otherwise the TOC would replace everything after the START marker.
-- A block keeps the marker lines you wrote. With the `md2pdf` marker the filled block contains only the TOC; doctoc's own markers come with doctoc's "DON'T EDIT" note, as before.
+- A block keeps the marker lines you wrote, and a title line you put between the START marker and the list is kept on every refresh. With the `md2pdf` marker the filled block contains only the title and the TOC; doctoc's own markers come with doctoc's "DON'T EDIT" note, as before.
 
-If the source Markdown does not yet contain a marker block, pass `--toc` (or `-f`) to create one on the temporary conversion copy. The new block uses the `md2pdf` marker and is placed directly before the first second-order (`##`) heading in the file.
+If the source Markdown does not yet contain a marker block, pass `--toc` (or `-f`) to create one on the temporary conversion copy. The new block uses the `md2pdf` marker, is placed directly before the first second-order (`##`) heading in the file and gets the default "Table of Contents" title of the TOC tool. A marker block you add yourself starts without a title.
 
 To also write the refreshed TOC back into the original Markdown file (instead of only into the temporary conversion copy), combine `-u` with an existing marker block. Nothing outside the block is changed, and the write-back is refused if the TOC tool changed anything else. `-u` never adds a marker block to the source file: on a file without one it leaves the file unchanged and prints a warning. `-u` cannot be combined with `--merge`, because a merged run converts a temporary combined copy of the files, not the files themselves.
 

@@ -20,7 +20,7 @@ export const BOM = '\uFEFF';
  *
  * Windows tooling (Notepad, `Out-File`, `Set-Content`) writes UTF-8 with a
  * BOM by default, and the BOM sits *before* the first character of the first
- * line: it hides a `---` frontmatter delimiter, a `#` heading and a doctoc
+ * line: it hides a `---` frontmatter delimiter, a `#` heading and a ToC
  * marker from every line-oriented scan in this module. Every scanner that
  * looks at line 1 therefore strips it first (#48).
  *
