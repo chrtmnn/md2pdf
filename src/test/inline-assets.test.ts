@@ -315,3 +315,20 @@ test('transformImageTargets rewrites an unquoted src attribute (#55)', () => {
 
   assert.equal(output, '<img src="y/x.png">\n');
 });
+
+test('transformImageTargets rewrites src, not an attribute ending in -src (#101)', () => {
+  const seen: string[] = [];
+  const output = transformImageTargets(
+    '<img data-src="large.png" src="thumb.png">\n\n<img src="a.png" data-src="b.png">\n\n<img lazy-src=c.png>\n',
+    (target) => {
+      seen.push(target);
+      return `y/${target}`;
+    },
+  );
+
+  assert.deepEqual(seen, ['thumb.png', 'a.png']);
+  assert.equal(
+    output,
+    '<img data-src="large.png" src="y/thumb.png">\n\n<img src="y/a.png" data-src="b.png">\n\n<img lazy-src=c.png>\n',
+  );
+});
