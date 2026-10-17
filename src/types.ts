@@ -103,10 +103,13 @@ export type ConversionContext = {
   sourceFile: string;
   /** Directory containing the original Markdown source file. */
   sourceDir: string;
-  /** Original source filename including extension. */
-  baseName: string;
   /** Original source filename without extension. */
   stem: string;
+  /**
+   * The stem every file in {@link ConversionContext.workdir} is named after:
+   * sanitized (#84) and shortened to the platform's limits (#55, #100).
+   */
+  tempStem: string;
   /** Isolated temporary directory for intermediate files. */
   workdir: string;
   /** Markdown file consumed by mermaid-cli, updated when the ToC step creates a temp copy. */
