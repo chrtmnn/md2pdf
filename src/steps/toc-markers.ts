@@ -255,14 +255,15 @@ export function removeTocBlocks(
  * the flag has no effect on that file (#60).
  *
  * @param sourceFile - Path of the source Markdown file.
- * @param forceToc - Whether `--toc` was given, which already puts a ToC into
+ * @param tocAlways - Whether `--toc` was given, which already puts a ToC into
  *   the PDF and makes the `--toc` hint pointless.
  * @returns The warning text, naming the file.
  */
-export function describeMissingMarkerBlock(sourceFile: string, forceToc: boolean): string {
-  const advice = forceToc
-    ? 'Add the marker block to keep a TOC in it (see README, "Table of Contents Markers"); -f alone only adds one to the PDF.'
-    : 'Add the marker block (see README, "Table of Contents Markers") or use -f for a TOC in the PDF only.';
+export function describeMissingMarkerBlock(sourceFile: string, tocAlways: boolean): string {
+  // `--toc`, not its hidden alias `-f`, which `--help` no longer lists (#104).
+  const advice = tocAlways
+    ? 'Add the marker block to keep a TOC in it (see README, "Table of Contents Markers"); --toc alone only adds one to the PDF.'
+    : 'Add the marker block (see README, "Table of Contents Markers") or use --toc for a TOC in the PDF only.';
 
   return `${sourceFile} has no table of contents marker block; the source file was not updated. ${advice}`;
 }
