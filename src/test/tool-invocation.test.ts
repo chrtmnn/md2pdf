@@ -241,3 +241,29 @@ test('formatExecError falls back to the message of an error without tool output'
   assert.equal(formatExecError('plain string', 'doctoc'), 'plain string');
   assert.equal(formatExecError(null, 'doctoc'), 'null');
 });
+
+test('formatExecError says that a timed-out tool was stopped and how to allow longer (#102)', () => {
+  const timedOut = { code: 'ETIMEDOUT', signal: 'SIGTERM', stderr: '', stdout: '' };
+  const hint = 'Set MD2PDF_TOOL_TIMEOUT (milliseconds, 0 disables the limit) to allow longer.';
+
+  assert.equal(
+    formatExecError(timedOut, 'md-to-pdf', 10 * 60 * 1000),
+    `md-to-pdf did not finish within 10 minutes and was stopped. ${hint}`,
+  );
+  assert.equal(formatExecError(timedOut, 'doctoc', 1000), `doctoc did not finish within 1 second and was stopped. ${hint}`);
+  assert.equal(formatExecError(timedOut, 'doctoc', 1500), `doctoc did not finish within 1500 ms and was stopped. ${hint}`);
+  assert.equal(
+    formatExecError(timedOut, 'doctoc'),
+    `doctoc did not finish within the time limit and was stopped. ${hint}`,
+  );
+});
+
+test('formatExecError keeps what a timed-out tool printed (#102)', () => {
+  const timedOut = { code: 'ETIMEDOUT', stderr: 'still waiting for Chromium\n', stdout: '' };
+
+  assert.equal(
+    formatExecError(timedOut, 'mmdc', 2 * 60 * 1000),
+    'mmdc did not finish within 2 minutes and was stopped. ' +
+      'Set MD2PDF_TOOL_TIMEOUT (milliseconds, 0 disables the limit) to allow longer.\nstill waiting for Chromium',
+  );
+});

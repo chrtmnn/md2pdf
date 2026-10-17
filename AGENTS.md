@@ -432,7 +432,7 @@ The package is looked up in the `node_modules` directories `require.resolve.path
 
 A non-empty override variable is an npx package selector such as `doctoc@latest` and runs that tool through npx instead — deliberately, to try another version without reinstalling. Failures name the package, or `npx <selector>` for an override.
 
-Every external tool gets a wall-clock timeout (10 minutes, `MD2PDF_TOOL_TIMEOUT` in milliseconds overrides it, `0` disables it) and a 64 MiB output buffer (#51): a wedged Chromium used to block the run forever, and a chatty failure past the old 10 MiB buffer was killed with `ENOBUFS` and reported as a tool failure.
+Every external tool gets a wall-clock timeout (10 minutes, `MD2PDF_TOOL_TIMEOUT` in milliseconds overrides it, `0` disables it) and a 64 MiB output buffer (#51): a wedged Chromium used to block the run forever, and a chatty failure past the old 10 MiB buffer was killed with `ENOBUFS` and reported as a tool failure. A tool stopped by the timeout is reported as such, with the limit and the variable that raises it, instead of a bare `<tool> failed` (#102).
 
 The document title is passed as `--document-title=<title>`, one argv element. As two elements, md-to-pdf's parser took the following token for a flag whenever the title started with `--` — a first heading of `# --version` aborted the run with a raw Node stack trace (#51).
 
