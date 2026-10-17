@@ -5,8 +5,9 @@
  * do — and the one that notices a file missing from the tarball.
  *
  * Checked: `--version` and `--help`; a conversion with the bundled stylesheet;
- * a conversion with `-s <name>` from the config directory; doctoc filling a
- * marker block; an image referenced by a relative path; the PDF itself.
+ * a conversion with `-s <name>` from the config directory; doctoc filling
+ * md2pdf's own marker block (first conversion) and a doctoc marker block
+ * (second conversion); an image referenced by a relative path; the PDF itself.
  * `--mermaid` adds a diagram, which CI leaves out because mermaid-cli's
  * Chromium is the flakiest part on hosted runners. `--keep` keeps the
  * temporary directory, which is also kept after a failure.
@@ -54,12 +55,20 @@ function run(command, args, { cwd = root, env = process.env, capture = false } =
   return execSync(line, { cwd, env, encoding: 'utf8', stdio: ['ignore', capture ? 'pipe' : 'inherit', 'inherit'] });
 }
 
-function writeFixture() {
+/** md2pdf's own marker block (#83). */
+const OWN_MARKERS = ['<!-- toc START -->', '<!-- toc END -->'];
+
+/** doctoc's marker block. */
+const DOCTOC_MARKERS = [
+  '<!-- START doctoc generated TOC please keep comment here to allow auto update -->',
+  '<!-- END doctoc generated TOC please keep comment here to allow auto update -->',
+];
+
+function writeGuide(markers) {
   const guide = [
     '# Smoke Test',
     '',
-    '<!-- START doctoc generated TOC please keep comment here to allow auto update -->',
-    '<!-- END doctoc generated TOC please keep comment here to allow auto update -->',
+    ...markers,
     '',
     '## First section',
     '',
@@ -70,8 +79,11 @@ function writeFixture() {
     ...(withMermaid ? ['```mermaid', 'flowchart LR', '  A --> B', '```', ''] : []),
   ].join('\n');
 
-  fs.mkdirSync(path.join(work, 'docs', 'images'), { recursive: true });
   fs.writeFileSync(path.join(work, 'docs', 'guide.md'), guide);
+}
+
+function writeFixture() {
+  fs.mkdirSync(path.join(work, 'docs', 'images'), { recursive: true });
   fs.writeFileSync(path.join(work, 'docs', 'images', 'pixel.png'), Buffer.from(PIXEL_PNG, 'base64'));
   fs.mkdirSync(config, { recursive: true });
   fs.writeFileSync(path.join(config, 'smoke.css'), `body { color: ${SMOKE_COLOR}; }\n`);
@@ -119,9 +131,11 @@ try {
 
   writeFixture();
 
+  writeGuide(OWN_MARKERS);
   const bundled = convert(md2pdf, 'out-bundled', []);
   assert.match(bundled, /--document-break-before/, 'the bundled default.css was applied');
 
+  writeGuide(DOCTOC_MARKERS);
   const named = convert(md2pdf, 'out-named', ['-s', 'smoke']);
   assert.ok(named.includes(SMOKE_COLOR), 'the -s name was found in the config directory');
   assert.doesNotMatch(named, /--document-break-before/, 'the named stylesheet replaced the bundled one');

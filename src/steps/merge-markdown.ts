@@ -3,8 +3,8 @@ import os from 'os';
 import path from 'path';
 import { ConverterOptions } from '../types';
 import { absolutizeImageTargets } from './inline-assets';
-import { removeDoctocBlocks } from './doctoc-markers';
 import { commonAncestorDirectory, joinDocuments, prependTocMarkers, removeFrontmatter } from './merge-assembly';
+import { removeTocBlocks } from './toc-markers';
 import { NATIVE_PATH_RULES, PathRules, comparisonKey } from './path-rules';
 import { stripBom } from './markdown-scan';
 
@@ -65,15 +65,16 @@ function createMergeDirectory(options: ConverterOptions, targetDir: string): str
  * the last moment at which each section's own directory is still known, and
  * `inlineAssets` later embeds those absolute paths as `data:` URIs.
  *
- * With `--toc` the document's own doctoc blocks are removed: the merged file
- * gets one table of contents in front of all documents instead.
+ * With `--toc` the document's own ToC blocks — of every registry marker — are
+ * removed: the merged file gets one table of contents in front of all
+ * documents instead.
  *
  * @param file - Absolute path of the source Markdown file.
  * @param isFirst - Whether this is the first document of the merge.
- * @param removeToc - Whether to remove the document's doctoc blocks.
+ * @param removeToc - Whether to remove the document's ToC blocks.
  * @returns The normalised body, whether frontmatter had to be dropped, and
- *   whether a doctoc block was removed.
- * @throws When the document has a doctoc START marker without an END marker.
+ *   whether a ToC block was removed.
+ * @throws When the document has a START marker without an END marker.
  */
 function readDocument(
   file: string,
@@ -86,7 +87,7 @@ function readDocument(
 
   if (removeToc) {
     try {
-      withoutToc = removeDoctocBlocks(body);
+      withoutToc = removeTocBlocks(body);
     } catch (error) {
       throw new Error(
         `${file}: ${(error as Error).message}. Add the missing marker or remove the stray one; the file was left unchanged.`,

@@ -11,6 +11,7 @@ import os from 'os';
 import path from 'path';
 import type { TestContext } from 'node:test';
 import type { PipelineReporter } from '../pipeline';
+import { DOCTOC_END_LINE, DOCTOC_NOTE_LINE, DOCTOC_START_LINE } from '../steps/doctoc-backend';
 import { ConversionContext, ConverterOptions, ToolName, ToolRunner } from '../types';
 
 /**
@@ -131,8 +132,7 @@ export function makeContext({
   ...overrides
 }: Partial<ConversionContext> & { sourceFile: string }): ConversionContext {
   const sourceFile = path.resolve(rawSourceFile);
-  const baseName = path.basename(sourceFile);
-  const stem = path.parse(baseName).name;
+  const stem = path.parse(path.basename(sourceFile)).name;
   const sourceDir = path.dirname(sourceFile);
   const workdir = overrides.workdir ?? sourceDir;
   const targetDir = overrides.targetDir ?? sourceDir;
@@ -141,8 +141,8 @@ export function makeContext({
     options: makeOptions(),
     sourceFile,
     sourceDir,
-    baseName,
     stem,
+    tempStem: stem,
     workdir,
     inputMarkdown: sourceFile,
     convertedMarkdown: path.join(workdir, `${stem}_converted.md`),
@@ -312,12 +312,12 @@ export type FakeTools = {
 
 /** The table of contents the fake doctoc writes. */
 export const FAKE_TOC_LINES = [
-  '<!-- START doctoc generated TOC please keep comment here to allow auto update -->',
-  "<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->",
+  DOCTOC_START_LINE,
+  DOCTOC_NOTE_LINE,
   '',
   '- [Generated](#generated)',
   '',
-  '<!-- END doctoc generated TOC please keep comment here to allow auto update -->',
+  DOCTOC_END_LINE,
 ];
 
 /** The bytes the fake md-to-pdf writes as a PDF. */
@@ -387,4 +387,73 @@ function fakeDoctoc(file: string): void {
       : [...FAKE_TOC_LINES, '', ...lines];
 
   fs.writeFileSync(file, updated.join('\n'), 'utf8');
+}
+
+/**
+ * Joins fixture lines into a Markdown document.
+ *
+ * @param documentLines - Lines without terminators.
+ * @param eol - Line ending to use.
+ * @returns The assembled document, with a trailing line ending.
+ */
+export function markdownDoc(documentLines: string[], eol = '\n'): string {
+  return documentLines.join(eol) + eol;
+}
+
+/** The shape of this repository's `AGENTS.md` at the time of #44: an inline-code example, no END marker. */
+export const INLINE_EXAMPLE_DOC = markdownDoc([
+  '# Agents',
+  '',
+  '## Doctoc',
+  '',
+  '`runDoctoc` runs when the file contains `<!-- START doctoc generated TOC`.',
+  '',
+  '## Later section',
+  '',
+  'Everything down here must survive.',
+]);
+
+/**
+ * A real TOC, in the exact shape doctoc writes it (doctoc reads the line two
+ * below START as the title), preceded by a fenced example of the marker block.
+ */
+export const EXAMPLE_BEFORE_REAL_TOC = markdownDoc([
+  '# Guide',
+  '',
+  '```markdown',
+  DOCTOC_START_LINE,
+  DOCTOC_END_LINE,
+  '```',
+  '',
+  DOCTOC_START_LINE,
+  DOCTOC_NOTE_LINE,
+  '**Table of Contents**',
+  '',
+  '- stale entry',
+  '',
+  DOCTOC_END_LINE,
+  '',
+  '## First',
+  '',
+  '## Second',
+]);
+
+/** doctoc's in-process TOC transform; only the fields the tests read are typed. */
+export const doctocTransform = require('doctoc/lib/transform') as (content: string) => {
+  transformed: boolean;
+  data?: string;
+};
+
+/**
+ * A doctoc replacement for {@link createFakeTools} that runs doctoc's real
+ * `transform` in-process — the code `npx doctoc` executes, minus the spawn —
+ * and writes the file back only when doctoc changed it, as the CLI does.
+ *
+ * @param args - doctoc's arguments; the file is the first.
+ */
+export function inProcessDoctoc(args: string[]): void {
+  const result = doctocTransform(fs.readFileSync(args[0], 'utf8'));
+  if (result.transformed && result.data !== undefined) {
+    fs.writeFileSync(args[0], result.data, 'utf8');
+  }
 }

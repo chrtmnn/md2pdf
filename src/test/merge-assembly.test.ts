@@ -16,13 +16,15 @@ import {
   removeFrontmatter,
 } from '../steps/merge-assembly';
 import { POSIX_PATH_RULES, WINDOWS_PATH_RULES } from '../steps/path-rules';
-import { DOCTOC_END_MARKER, DOCTOC_MARKER } from '../steps/toc-placement';
+import { prepareDoctocInput, readDoctocOutput } from '../steps/doctoc-backend';
+import { OWN_TOC_MARKER } from '../steps/toc-markers';
+import { doctocTransform } from './helpers';
 
-/** doctoc's in-process TOC transform; only the field the tests read is typed. */
-const doctocTransform = require('doctoc/lib/transform') as (content: string) => { data?: string };
+/** md2pdf's own START marker line. */
+const START = OWN_TOC_MARKER.start;
 
-/** A genuine START marker line, as doctoc writes it. */
-const START = `${DOCTOC_MARKER} please keep comment here to allow auto update -->`;
+/** md2pdf's own END marker line. */
+const END = OWN_TOC_MARKER.end;
 
 /**
  * Builds an absolute path from segments in a platform-correct way, so the same
@@ -126,10 +128,10 @@ test('joinDocuments skips an empty document instead of emitting two breaks (#49)
   assert.equal(merged.split(DOCUMENT_BREAK_HTML).length - 1, 1);
 });
 
-test('prependTocMarkers puts a marker pair and a break in front of the first document', () => {
+test('prependTocMarkers puts an own marker pair and a break in front of the first document (#83)', () => {
   const merged = joinDocuments(['# A', '# B']);
 
-  assert.equal(prependTocMarkers(merged), `${START}\n${DOCTOC_END_MARKER}\n\n${DOCUMENT_BREAK_HTML}\n\n${merged}`);
+  assert.equal(prependTocMarkers(merged), `${START}\n${END}\n\n${DOCUMENT_BREAK_HTML}\n\n${merged}`);
 });
 
 test('prependTocMarkers keeps the first document frontmatter at the very top', () => {
@@ -137,16 +139,17 @@ test('prependTocMarkers keeps the first document frontmatter at the very top', (
 
   assert.equal(
     prependTocMarkers(merged),
-    `---\ntitle: A\n---\n\n${START}\n${DOCTOC_END_MARKER}\n\n${DOCUMENT_BREAK_HTML}\n\n# A\n\n${DOCUMENT_BREAK_HTML}\n\n# B\n`,
+    `---\ntitle: A\n---\n\n${START}\n${END}\n\n${DOCUMENT_BREAK_HTML}\n\n# A\n\n${DOCUMENT_BREAK_HTML}\n\n# B\n`,
   );
 });
 
 test('doctoc fills the prepended pair with one TOC spanning every document', () => {
   const merged = prependTocMarkers(joinDocuments(['# A\n\n## A1', '# B\n\n## B1']));
-  const output = doctocTransform(merged).data ?? '';
+  const prepared = doctocTransform(prepareDoctocInput(merged, { startIndex: 0, endIndex: 1 })).data ?? '';
+  const output = readDoctocOutput(prepared, OWN_TOC_MARKER).markdown;
 
   assert.equal(output.split(START).length - 1, 1);
   assert.equal(output.startsWith(START), true);
   assert.match(output, /- \[A\]\(#a\)\n {2}- \[A1\]\(#a1\)\n- \[B\]\(#b\)\n {2}- \[B1\]\(#b1\)/);
-  assert.equal(output.indexOf(DOCTOC_END_MARKER) < output.indexOf('# A\n'), true);
+  assert.equal(output.indexOf(END) < output.indexOf('# A\n'), true);
 });

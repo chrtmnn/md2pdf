@@ -17,7 +17,6 @@ export function prepareWorkdir(sourceFile: string, options: ConverterOptions): C
   }
 
   const absSrc = path.resolve(sourceFile);
-  const baseName = path.basename(sourceFile);
   const sourceDir = path.dirname(absSrc);
   const { stem, targetDir, outputPdf, outputHtml } = deriveOutputPaths(absSrc, options.outputDir);
   // Every generated name is built from the shortened stem, so a very long
@@ -50,8 +49,8 @@ export function prepareWorkdir(sourceFile: string, options: ConverterOptions): C
     options,
     sourceFile: absSrc,
     sourceDir,
-    baseName,
     stem,
+    tempStem,
     workdir,
     inputMarkdown: absSrc,
     convertedMarkdown: path.join(workdir, `${tempStem}_converted.md`),

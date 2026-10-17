@@ -14,9 +14,9 @@ import test, { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { DOCUMENT_BREAK_HTML } from '../steps/merge-assembly';
 import { MergedInput, mergeMarkdown } from '../steps/merge-markdown';
-import { scanDoctocMarkers } from '../steps/doctoc-markers';
 import { NATIVE_PATH_RULES, POSIX_PATH_RULES, PathRules, WINDOWS_PATH_RULES } from '../steps/path-rules';
-import { DOCTOC_END_MARKER, DOCTOC_MARKER } from '../steps/toc-placement';
+import { DOCTOC_END_LINE as DOCTOC_END_MARKER, DOCTOC_START_LINE } from '../steps/doctoc-backend';
+import { OWN_MARKER_ENTRY, OWN_TOC_MARKER, scanTocMarkers } from '../steps/toc-markers';
 import { ConverterOptions } from '../types';
 import { comparablePath, makeOptions, removeAfter, tempDir, writePng, writeFile } from './helpers';
 
@@ -182,6 +182,19 @@ test('pins relative image targets to their own source document (#28)', (t) => {
   assert.equal(merged.includes(`![logo](${expectedB})`), true, merged);
 });
 
+test('does not pin an image documented in a fenced block of a CRLF document (#99)', (t) => {
+  const dir = tempDir(t);
+  const a = writeFile(dir, 'a.md', ['# A', '', '```', '![logo](images/logo.png)', '```', ''].join('\r\n'));
+  writePng(dir, 'images/logo.png');
+
+  const merged = fs.readFileSync(
+    merge(t, [a], makeOptions({ merge: 'combined' })).mergedFile,
+    'utf8',
+  );
+
+  assert.equal(merged.includes('![logo](images/logo.png)'), true, merged);
+});
+
 test('leaves image targets that do not resolve exactly as written (#28)', (t) => {
   const dir = tempDir(t);
   const a = writeFile(dir, 'a.md', '![gone](images/missing.png)\n\n![remote](https://example.com/x.png)\n');
@@ -260,7 +273,7 @@ test('the multi-directory warning compares directories per the platform rules (#
 
 test('--toc replaces the documents own tables of contents with one in front of them', (t) => {
   const dir = tempDir(t);
-  const start = `${DOCTOC_MARKER} please keep comment here to allow auto update -->`;
+  const start = DOCTOC_START_LINE;
   const a = writeFile(dir, 'a.md', `# A\n\n${start}\n\n- [Old A](#old-a)\n\n${DOCTOC_END_MARKER}\n\n## A1\n`);
   const b = writeFile(dir, 'b.md', `# B\n\n${start}\n- [Old B](#old-b)\n${DOCTOC_END_MARKER}\n\nBody B.\n`);
   const c = writeFile(dir, 'c.md', '# C\n\n```\n' + `${start}\n${DOCTOC_END_MARKER}\n` + '```\n');
@@ -268,11 +281,14 @@ test('--toc replaces the documents own tables of contents with one in front of t
   const result = merge(t, [a, b, c], makeOptions({ merge: 'combined', toc: 'always' }));
   const merged = fs.readFileSync(result.mergedFile, 'utf8');
 
-  assert.equal(merged.startsWith(`${start}\n${DOCTOC_END_MARKER}\n\n${DOCUMENT_BREAK_HTML}\n\n# A\n`), true);
+  assert.equal(
+    merged.startsWith(`${OWN_TOC_MARKER.start}\n${OWN_TOC_MARKER.end}\n\n${DOCUMENT_BREAK_HTML}\n\n# A\n`),
+    true,
+  );
   assert.equal(merged.includes('Old A'), false);
   assert.equal(merged.includes('Old B'), false);
   assert.equal(merged.includes('```\n' + `${start}\n${DOCTOC_END_MARKER}\n` + '```'), true, 'documented example kept');
-  assert.deepEqual(scanDoctocMarkers(merged), { kind: 'pair', startIndex: 0, endIndex: 1 });
+  assert.deepEqual(scanTocMarkers(merged), { kind: 'pair', startIndex: 0, endIndex: 1, entry: OWN_MARKER_ENTRY });
   assert.deepEqual(result.warnings, [
     'Removed the table of contents of 2 documents: --toc puts one table of contents in front of the merged documents.',
   ]);
@@ -280,7 +296,7 @@ test('--toc replaces the documents own tables of contents with one in front of t
 
 test('without --toc a merge leaves the documents tables of contents alone', (t) => {
   const dir = tempDir(t);
-  const start = `${DOCTOC_MARKER} please keep comment here to allow auto update -->`;
+  const start = DOCTOC_START_LINE;
   const source = `# A\n\n${start}\n- [A1](#a1)\n${DOCTOC_END_MARKER}\n\n## A1\n`;
   const a = writeFile(dir, 'a.md', source);
 
@@ -292,10 +308,38 @@ test('without --toc a merge leaves the documents tables of contents alone', (t) 
 test('--toc fails the merge on a document with a START marker but no END marker', (t) => {
   const dir = tempDir(t);
   const a = writeFile(dir, 'a.md', '# A\n');
-  const b = writeFile(dir, 'b.md', `# B\n\n${DOCTOC_MARKER} please keep comment here to allow auto update -->\n\nBody.\n`);
+  const b = writeFile(dir, 'b.md', `# B\n\n${DOCTOC_START_LINE}\n\nBody.\n`);
 
   assert.throws(
     () => merge(t, [a, b], makeOptions({ merge: 'combined', toc: 'always', tempRoot: dir })),
     /b\.md: doctoc START marker on line 3 has no END marker/,
+  );
+});
+
+test('--toc removes the blocks of every registry marker, the own one included (#83)', (t) => {
+  const dir = tempDir(t);
+  const { start, end } = OWN_TOC_MARKER;
+  const a = writeFile(dir, 'a.md', `# A\n\n${start}\n- [Old A](#old-a)\n${end}\n\n## A1\n`);
+  const b = writeFile(dir, 'b.md', `# B\n\n${DOCTOC_START_LINE}\n- [Old B](#old-b)\n${DOCTOC_END_MARKER}\n\nBody B.\n`);
+  const c = writeFile(dir, 'c.md', `# C\n\nSee \`${start}\`.\n`);
+
+  const result = merge(t, [a, b, c], makeOptions({ merge: 'combined', toc: 'always' }));
+  const merged = fs.readFileSync(result.mergedFile, 'utf8');
+
+  assert.equal(merged.includes('Old A'), false);
+  assert.equal(merged.includes('Old B'), false);
+  assert.equal(merged.split(start).length - 1, 2, 'the prepended pair plus the documented example');
+  assert.ok(merged.includes(`See \`${start}\`.`), 'documented example kept');
+  assert.equal(merged.includes(DOCTOC_START_LINE), false);
+  assert.equal(result.warnings.length, 1);
+});
+
+test('--toc fails the merge on a document with an own START marker but no END marker (#83)', (t) => {
+  const dir = tempDir(t);
+  const a = writeFile(dir, 'a.md', `# A\n\n${OWN_TOC_MARKER.start}\n\nBody.\n`);
+
+  assert.throws(
+    () => merge(t, [a], makeOptions({ merge: 'combined', toc: 'always', tempRoot: dir })),
+    /a\.md: md2pdf START marker on line 3 has no END marker/,
   );
 });
