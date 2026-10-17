@@ -397,9 +397,9 @@ test('-u without a marker block warns before doctoc runs', (t) => {
   const run = runFixture(t, [file], { tempRoot: path.join(dir, 'temp'), toc: 'always', writeToc: true });
 
   assert.equal(run.code, 0);
-  assert.ok(run.reporter.has('warn', 'has no doctoc marker block'), 'the user is told the source stays as it is');
+  assert.ok(run.reporter.has('warn', 'has no table of contents marker block'), 'the user is told the source stays as it is');
   assert.ok(
-    indexOf(run, 'warn', 'has no doctoc marker block') < indexOf(run, 'status', 'Table of contents'),
+    indexOf(run, 'warn', 'has no table of contents marker block') < indexOf(run, 'status', 'Table of contents'),
     'the warning comes before the doctoc step, not after it',
   );
   assert.equal(fs.readFileSync(file, 'utf8'), '# Doc\n\n## Section\n', 'the source file is untouched');

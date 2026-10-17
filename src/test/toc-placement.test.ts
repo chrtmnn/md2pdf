@@ -7,13 +7,14 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DOCTOC_END_MARKER, DOCTOC_MARKER, relocateTocBeforeFirstH2 } from '../steps/toc-placement';
+import { DOCTOC_END_LINE, DOCTOC_START_LINE } from '../steps/doctoc-backend';
+import { relocateTocBeforeFirstH2 } from '../steps/toc-placement';
 
 /** A minimal but realistic doctoc block, as three lines. */
 const TOC_BLOCK = [
-  `${DOCTOC_MARKER} please keep comment here to allow auto update -->`,
+  DOCTOC_START_LINE,
   '- [Second](#second)',
-  DOCTOC_END_MARKER,
+  DOCTOC_END_LINE,
 ];
 
 /**
@@ -113,7 +114,7 @@ test('omits the leading blank line when the block lands at the top of the file',
   const output = relocateTocBeforeFirstH2(input);
 
   assert.equal(output, doc([...TOC_BLOCK, '', '## Second', '', 'Body.']));
-  assert.equal(output.startsWith(DOCTOC_MARKER), true);
+  assert.equal(output.startsWith(DOCTOC_START_LINE), true);
 });
 
 test('targets a setext second-order heading', () => {

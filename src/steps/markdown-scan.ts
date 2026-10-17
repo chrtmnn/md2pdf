@@ -1,5 +1,5 @@
 /**
- * Shared Markdown scanning primitives used by both `run-doctoc.ts` (to locate
+ * Shared Markdown scanning primitives used by both `run-toc.ts` (to locate
  * the first `##`-equivalent heading for TOC placement) and `extract-title.ts`
  * (to locate the first heading of any level for the document title). Keeping
  * this logic in one place avoids two divergent implementations of
@@ -8,8 +8,8 @@
  * Both consumers scan through {@link mapLiveContent}, which hides the two
  * containers that make a `#` line look like a heading without rendering as
  * one: fenced code blocks (#18) and HTML comment blocks (#32).
- * `doctoc-markers.ts` uses the underlying {@link classifyLines} to tell a
- * genuine doctoc marker comment from a documented example (#44).
+ * `toc-markers.ts` uses the underlying {@link classifyLines} to tell a
+ * genuine ToC marker comment from a documented example (#44).
  */
 
 /** Byte order mark, the one character every scan has to look past. */
@@ -236,7 +236,7 @@ export type LineKind = 'content' | 'fence' | 'comment-start' | 'comment';
 /**
  * Classifies every line by the container it belongs to, with the fence and
  * HTML-comment rules described at {@link mapLiveContent}. Exposed separately
- * because a doctoc marker *is* an HTML comment: `doctoc-markers.ts` needs to
+ * because a ToC marker *is* an HTML comment: `toc-markers.ts` needs to
  * know which lines open a real comment block, not just which lines render.
  *
  * @param lines - Document lines, without line terminators.

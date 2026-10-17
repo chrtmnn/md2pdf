@@ -65,7 +65,7 @@ export type ConverterOptions = {
   /**
    * When a table of contents is built (#59):
    *
-   * - `auto`: only when the source carries genuine doctoc markers (the default);
+   * - `auto`: only when the source carries a genuine table of contents marker (the default);
    * - `always`: also without markers (`--toc`, previously `-f`);
    * - `never`: not even for a source with markers (`--no-toc`).
    */
@@ -109,7 +109,7 @@ export type ConversionContext = {
   stem: string;
   /** Isolated temporary directory for intermediate files. */
   workdir: string;
-  /** Markdown file consumed by mermaid-cli, updated when doctoc creates a temp copy. */
+  /** Markdown file consumed by mermaid-cli, updated when the ToC step creates a temp copy. */
   inputMarkdown: string;
   /** Markdown file emitted by mermaid-cli and consumed by md-to-pdf. */
   convertedMarkdown: string;

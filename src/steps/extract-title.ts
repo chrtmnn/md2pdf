@@ -7,7 +7,7 @@ import { findFrontmatterEnd, findFirstHeading, stripBom } from './markdown-scan'
  * document title.
  *
  * The scan is fence-aware (fenced code blocks, ``` and ~~~, are ignored --
- * shared with `run-doctoc.ts`'s TOC-placement scanner) and skips a leading
+ * shared with `run-toc.ts`'s TOC-placement scanner) and skips a leading
  * YAML frontmatter block. A "heading" here is either a genuine ATX heading
  * (`#` through `######`, followed by whitespace or end of line -- `#hashtag`
  * with no space does not count, per CommonMark) or a setext heading (a text

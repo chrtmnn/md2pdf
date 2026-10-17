@@ -3,13 +3,13 @@
  * documents are normalised and glued together, and where the merged PDF
  * defaults to. Kept separate from that file so these rules can be exercised
  * without creating temp directories, following the same split as
- * `markdown-scan.ts` / `run-doctoc.ts`.
+ * `markdown-scan.ts` / `run-toc.ts`.
  */
 
 import path from 'path';
 import { findFrontmatterEnd } from './markdown-scan';
 import { NATIVE_PATH_RULES, PathRules, comparisonKey } from './path-rules';
-import { DOCTOC_END_MARKER, DOCTOC_MARKER } from './toc-placement';
+import { OWN_TOC_MARKER } from './toc-markers';
 
 /**
  * Separator inserted between two consecutive source documents in a merged
@@ -113,7 +113,7 @@ export function commonAncestorDirectory(files: string[], rules: PathRules = NATI
  * Only the *first* document's frontmatter sits where md-to-pdf parses it; in
  * every later document the same block is ordinary content and renders as a
  * horizontal rule plus an invented heading carrying the raw YAML, which
- * `--force-doctoc` then lists in the table of contents (#49). A `docs/`
+ * `--toc` then lists in the table of contents (#49). A `docs/`
  * folder whose files all carry frontmatter is the normal case, so the block
  * is dropped rather than rendered.
  *
@@ -163,15 +163,14 @@ export function joinDocuments(documents: string[]): string {
 }
 
 /**
- * Puts an empty doctoc marker pair in front of the merged documents, so
- * `--merge` with `--toc` builds one table of contents ahead of all of them
- * instead of relocating it before the first `##` heading of the first
- * document.
+ * Puts an empty marker pair of md2pdf's own marker in front of the merged
+ * documents, so `--merge` with `--toc` builds one table of contents ahead of
+ * all of them instead of relocating it before the first `##` heading of the
+ * first document.
  *
- * START and END must be on lines of their own: on one line doctoc does not
- * recognise the pair and prepends a second table of contents. A document
- * break follows the pair, so the first document starts on a page of its own
- * just like every later one.
+ * START and END are on lines of their own, as every registry marker must be.
+ * A document break follows the pair, so the first document starts on a page
+ * of its own just like every later one.
  *
  * The first document's frontmatter stays at the very top, where md-to-pdf
  * parses it.
@@ -189,8 +188,8 @@ export function prependTocMarkers(content: string): string {
     .join('\n')
     .replace(/^\s+/, '');
   const block = [
-    `${DOCTOC_MARKER} please keep comment here to allow auto update -->`,
-    DOCTOC_END_MARKER,
+    OWN_TOC_MARKER.start,
+    OWN_TOC_MARKER.end,
     '',
     DOCUMENT_BREAK_HTML,
     '',
