@@ -362,6 +362,16 @@ test('rejects -u together with --merge before any work starts (#60)', () => {
   assert.throws(() => resolveOptions(parse(['--merge=handbook', '--update-md-toc', 'a.md'])), combined);
 });
 
+test('rejects -u together with --no-toc before any work starts (#103)', () => {
+  const combined = /-u cannot be combined with --no-toc/;
+
+  assert.throws(() => resolveOptions(parse(['-u', '--no-toc', 'doc.md'])), combined);
+  assert.throws(() => resolveOptions(parse(['--no-toc', '--write-toc', 'doc.md'])), combined);
+  assert.throws(() => resolveOptions(parse(['--update-md-toc', '--no-toc', 'doc.md'])), combined);
+  assert.equal(resolveOptions(parse(['-u', '--toc', 'doc.md'])).toc, 'always');
+  assert.equal(resolveOptions(parse(['--no-toc', 'doc.md'])).toc, 'never');
+});
+
 test('rejects an empty -s value instead of falling back to the default (#55)', (t) => {
   const config = tempDir(t);
   writeFile(config, 'default.css', 'body {}\n');

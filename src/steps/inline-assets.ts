@@ -59,8 +59,12 @@ const MIME_TYPES: Record<string, string> = {
  */
 const MD_IMAGE_RE = /(!\[[^\]]*\]\(\s*)(<[^>\n]*>|(?:[^\s()]|\((?:[^\s()]|\([^\s()]*\))*\))+)/g;
 
-/** HTML `<img>` tag `src` attribute in quoted or bare form. */
-const HTML_IMG_RE = /(<img\b[^>]*?\bsrc\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
+/**
+ * HTML `<img>` tag `src` attribute in quoted or bare form. The attribute name
+ * must follow whitespace: `\b` also matched between `-` and `s`, so the `src`
+ * inside `data-src` was rewritten and the real `src` never reached (#101).
+ */
+const HTML_IMG_RE = /(<img\b[^>]*?\ssrc\s*=\s*)(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi;
 
 /** Inline code span, used to mask code out before image targets are matched. */
 const CODE_SPAN_RE = /(`+)(?:[^`]|(?!\1)`)*\1/g;

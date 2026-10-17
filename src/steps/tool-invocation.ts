@@ -304,21 +304,57 @@ export function interruptSignal(error: unknown): InterruptSignal | undefined {
  * Builds the message for a failed tool run.
  *
  * The tool's own output is the most useful explanation, so stderr and stdout
- * are preferred over the generic message `execFileSync` attaches.
+ * are preferred over the generic message `execFileSync` attaches. A tool that
+ * md2pdf stopped itself because it ran past the timeout is reported as such,
+ * together with the variable that raises the limit: it usually printed
+ * nothing, and a bare `<tool> failed` did not say what happened (#102).
  *
  * @param error - Value thrown by `execFileSync`.
  * @param label - Name of the failed tool, used when it printed nothing.
+ * @param timeoutMs - The timeout the tool ran with, `undefined` when disabled.
  * @returns The message to re-throw.
  */
-export function formatExecError(error: unknown, label: string): string {
+export function formatExecError(error: unknown, label: string, timeoutMs?: number): string {
   if (!isExecError(error)) {
     return error instanceof Error ? error.message : String(error);
   }
 
   const details = [error.stderr?.toString(), error.stdout?.toString()].filter(Boolean).join('\n').trim();
+  if (error.code === 'ETIMEDOUT') {
+    const limit = timeoutMs === undefined ? 'the time limit' : formatDuration(timeoutMs);
+    const timedOut =
+      `${label} did not finish within ${limit} and was stopped. ` +
+      'Set MD2PDF_TOOL_TIMEOUT (milliseconds, 0 disables the limit) to allow longer.';
+    return details ? `${timedOut}\n${details}` : timedOut;
+  }
+
   return details || `${label} failed`;
 }
 
-function isExecError(error: unknown): error is { stdout?: Buffer | string; stderr?: Buffer | string } {
+/**
+ * Renders a duration in the largest whole unit that expresses it exactly.
+ *
+ * @param ms - Duration in milliseconds.
+ * @returns E.g. `10 minutes`, `1 second`, `1500 ms`.
+ */
+function formatDuration(ms: number): string {
+  const units: [number, string][] = [
+    [60 * 60 * 1000, 'hour'],
+    [60 * 1000, 'minute'],
+    [1000, 'second'],
+  ];
+  for (const [size, unit] of units) {
+    if (ms >= size && ms % size === 0) {
+      const count = ms / size;
+      return `${count} ${unit}${count === 1 ? '' : 's'}`;
+    }
+  }
+
+  return `${ms} ms`;
+}
+
+function isExecError(
+  error: unknown,
+): error is { stdout?: Buffer | string; stderr?: Buffer | string; code?: unknown } {
   return typeof error === 'object' && error !== null && ('stdout' in error || 'stderr' in error);
 }

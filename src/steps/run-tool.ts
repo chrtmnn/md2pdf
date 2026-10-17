@@ -99,11 +99,12 @@ export function runTool(tool: ToolName, args: string[], options: RunToolOptions)
     PROCESS_ENVIRONMENT,
   );
 
+  const timeout = resolveToolTimeout();
   try {
     execFileSync(file, [...leadingArgs, ...args], {
       encoding: 'utf8',
       maxBuffer: OUTPUT_BUFFER_BYTES,
-      timeout: resolveToolTimeout(),
+      timeout,
       stdio: options.verbose ? 'inherit' : 'pipe',
     });
   } catch (error) {
@@ -111,6 +112,6 @@ export function runTool(tool: ToolName, args: string[], options: RunToolOptions)
     if (signal) {
       throw new InterruptedError(signal);
     }
-    throw new Error(formatExecError(error, label));
+    throw new Error(formatExecError(error, label, timeout));
   }
 }

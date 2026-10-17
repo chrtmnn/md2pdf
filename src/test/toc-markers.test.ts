@@ -131,14 +131,15 @@ test('removeTocBlocks keeps CRLF line endings', () => {
   assert.equal(result.body, doc(['# Title', 'Body.'], '\r\n'));
 });
 
-test('describeMissingMarkerBlock names the file and offers -f only when it is not given (#60)', () => {
-  const withoutForce = describeMissingMarkerBlock('docs/plain.md', false);
-  const withForce = describeMissingMarkerBlock('docs/plain.md', true);
+test('describeMissingMarkerBlock names the file and offers --toc only when it is not given (#60, #104)', () => {
+  const withoutToc = describeMissingMarkerBlock('docs/plain.md', false);
+  const withToc = describeMissingMarkerBlock('docs/plain.md', true);
 
-  assert.match(withoutForce, /^docs\/plain\.md has no table of contents marker block; the source file was not updated\./);
-  assert.match(withoutForce, /or use -f for a TOC in the PDF only\.$/);
-  assert.match(withForce, /^docs\/plain\.md has no table of contents marker block/);
-  assert.match(withForce, /-f alone only adds one to the PDF\.$/);
+  assert.match(withoutToc, /^docs\/plain\.md has no table of contents marker block; the source file was not updated\./);
+  assert.match(withoutToc, /or use --toc for a TOC in the PDF only\.$/);
+  assert.match(withToc, /^docs\/plain\.md has no table of contents marker block/);
+  assert.match(withToc, /--toc alone only adds one to the PDF\.$/);
+  assert.doesNotMatch(`${withoutToc}\n${withToc}`, /-f\b/, 'the retired -f flag is not recommended');
 });
 
 /** markdown-toc's markers, registered only by the tests that show an entry needs no code (#83). */
