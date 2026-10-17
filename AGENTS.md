@@ -143,7 +143,8 @@ validation, out of `resolve-options.ts`), `css-var-usage.ts` (the unused
 override — and the error formatting, out of `run-tool.ts`), `css-structure.ts` (the comment/string/brace scan behind the
 `@import` and `url()` rewrites, out of `resolve-stylesheet.ts`), `css-import-hoisting.ts` (remote `@import` placement and
 restating, out of `resolve-stylesheet.ts`), `stylesheet-lookup.ts` (the `-s`
-lookup order, out of `resolve-options.ts`), `md-to-pdf-args.ts` (the md-to-pdf
+lookup order, out of `resolve-options.ts`), `chromium-sandbox.ts` (whether Chromium keeps its sandbox, out of
+`resolve-options.ts`), `md-to-pdf-args.ts` (the md-to-pdf
 argument list both renders share, out of `render-pdf.ts` and `render-html.ts`) and `output-targets.ts` (output path
 derivation, collision detection and the debug-HTML generator marker, out of
 `prepare-workdir.ts` and `copy-output.ts`) all follow that split: the step file
@@ -403,6 +404,8 @@ The package is looked up in the `node_modules` directories `require.resolve.path
 A non-empty override variable is an npx package selector such as `doctoc@latest` and runs that tool through npx instead — deliberately, to try another version without reinstalling. Failures name the package, or `npx <selector>` for an override.
 
 Every external tool gets a wall-clock timeout (10 minutes, `MD2PDF_TOOL_TIMEOUT` in milliseconds overrides it, `0` disables it) and a 64 MiB output buffer (#51): a wedged Chromium used to block the run forever, and a chatty failure past the old 10 MiB buffer was killed with `ENOBUFS` and reported as a tool failure.
+
+Chromium refuses to start as root with its sandbox on, which is how md2pdf runs in containers, CI images and cloud sessions (#95). `resolveSandboxOff` (`src/steps/chromium-sandbox.ts`) therefore sets `ConverterOptions.sandboxOff` to `root` when `process.getuid()` is 0, or to `env` for `MD2PDF_NO_SANDBOX=1`; `0` or empty leaves the decision to the user id, any other value is an error, and Windows, which has no `getuid`, keeps the sandbox. Both Chromium starts then get `--no-sandbox` from a bundled config: `renderMermaid` passes `-p src/config/puppeteer.no-sandbox.config.json` to mermaid-cli, and `buildMdToPdfArgs` swaps `md-to-pdf.config.json` for `md-to-pdf.no-sandbox.config.json` — the same file plus `launch_options.args`, because md-to-pdf reads only one `--config-file`; `chromium-sandbox.test.ts` checks that the two stay identical apart from that key. `--verbose` names the reason. The CI `package` job is not affected: it lifts the AppArmor restriction instead of turning the sandbox off.
 
 The document title is passed as `--document-title=<title>`, one argv element. As two elements, md-to-pdf's parser took the following token for a flag whenever the title started with `--` — a first heading of `# --version` aborted the run with a raw Node stack trace (#51).
 

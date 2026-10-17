@@ -1,0 +1,8 @@
+{
+  "pdf_options": {
+    "preferCSSPageSize": true
+  },
+  "launch_options": {
+    "args": ["--no-sandbox"]
+  }
+}

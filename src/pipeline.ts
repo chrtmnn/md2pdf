@@ -34,6 +34,7 @@ import { renderPdf } from './steps/render-pdf';
 import { TempRegistry } from './steps/temp-registry';
 import { runDoctoc, shouldRunDoctoc } from './steps/run-doctoc';
 import { describeStylesheet } from './steps/stylesheet-lookup';
+import { describeSandboxOff } from './steps/chromium-sandbox';
 import { ConversionContext, ConverterOptions, ToolRunner } from './types';
 
 /**
@@ -195,6 +196,9 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
   // any flag, so --verbose says which one is in use and why.
   if (options.verbose) {
     reporter.info(describeStylesheet({ path: options.stylesheet, origin: options.stylesheetOrigin }));
+    if (options.sandboxOff) {
+      reporter.info(describeSandboxOff(options.sandboxOff));
+    }
   }
 
   // Positional arguments may be files or directories; expand them into the

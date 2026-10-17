@@ -3,6 +3,7 @@ import os from 'os';
 import path from 'path';
 import { Command } from 'commander';
 import { ConverterOptions, TocMode } from '../types';
+import { resolveSandboxOff } from './chromium-sandbox';
 import { parseCssVars, parseMergeName, translateLegacyCssVars } from './option-values';
 import { chooseStylesheet, configDirectory } from './stylesheet-lookup';
 import { readPackageOverrides } from './tool-invocation';
@@ -125,5 +126,7 @@ export function resolveOptions(program: Command): ConverterOptions {
     recursive: Boolean(rawOptions.recursive),
     merge: rawOptions.merge === undefined ? undefined : parseMergeName(rawOptions.merge),
     packageOverrides: readPackageOverrides(process.env),
+    // Chromium refuses to start as root with its sandbox on (#95).
+    sandboxOff: resolveSandboxOff(process.env, process.getuid?.()),
   };
 }

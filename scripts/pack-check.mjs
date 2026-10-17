@@ -1,7 +1,7 @@
 /**
  * Packs the already built package without running lifecycle scripts and
  * checks that the tarball carries exactly what a user installs (#56): the
- * compiled CLI with its stylesheet and md-to-pdf config, the README, the
+ * compiled CLI with its stylesheet and Chromium configs, the README, the
  * license and package.json — nothing else.
  *
  * Usage: node scripts/pack-check.mjs [destination-dir]
@@ -15,7 +15,14 @@ import os from 'node:os';
 import path from 'node:path';
 
 const ROOT_FILES = new Set(['package.json', 'README.md', 'LICENSE']);
-const REQUIRED = [...ROOT_FILES, 'dist/md2pdf.js', 'dist/css/default.css', 'dist/config/md-to-pdf.config.json'];
+const REQUIRED = [
+  ...ROOT_FILES,
+  'dist/md2pdf.js',
+  'dist/css/default.css',
+  'dist/config/md-to-pdf.config.json',
+  'dist/config/md-to-pdf.no-sandbox.config.json',
+  'dist/config/puppeteer.no-sandbox.config.json',
+];
 
 const destination = path.resolve(process.argv[2] ?? fs.mkdtempSync(path.join(os.tmpdir(), 'md2pdf-pack-')));
 fs.mkdirSync(destination, { recursive: true });

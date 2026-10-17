@@ -290,6 +290,12 @@ test('treats an empty package variable as unset', (t) => {
   assert.deepEqual(resolveOptions(parse(['doc.md'])).packageOverrides, {});
 });
 
+test('reads MD2PDF_NO_SANDBOX into sandboxOff (#95)', (t) => {
+  withEnv(t, { MD2PDF_NO_SANDBOX: '1' });
+
+  assert.equal(resolveOptions(parse(['doc.md'])).sandboxOff, 'env');
+});
+
 test('resolves a relative stylesheet against the working directory (#34)', () => {
   const stylesheet = writeFile(process.cwd(), 'local.css', 'body {}\n');
 
