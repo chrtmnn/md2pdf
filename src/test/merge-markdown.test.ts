@@ -182,6 +182,19 @@ test('pins relative image targets to their own source document (#28)', (t) => {
   assert.equal(merged.includes(`![logo](${expectedB})`), true, merged);
 });
 
+test('does not pin an image documented in a fenced block of a CRLF document (#99)', (t) => {
+  const dir = tempDir(t);
+  const a = writeFile(dir, 'a.md', ['# A', '', '```', '![logo](images/logo.png)', '```', ''].join('\r\n'));
+  writePng(dir, 'images/logo.png');
+
+  const merged = fs.readFileSync(
+    merge(t, [a], makeOptions({ merge: 'combined' })).mergedFile,
+    'utf8',
+  );
+
+  assert.equal(merged.includes('![logo](images/logo.png)'), true, merged);
+});
+
 test('leaves image targets that do not resolve exactly as written (#28)', (t) => {
   const dir = tempDir(t);
   const a = writeFile(dir, 'a.md', '![gone](images/missing.png)\n\n![remote](https://example.com/x.png)\n');

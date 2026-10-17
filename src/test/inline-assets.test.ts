@@ -88,6 +88,28 @@ test('inlineAssets embeds the image after a documented fence example (#47)', (t)
   assert.equal(output.endsWith(`![c](data:image/png;base64,${PNG_BASE64})`), true, output);
 });
 
+test('transformImageTargets skips fenced code blocks in a CRLF document and keeps its line endings (#99)', () => {
+  const markdown = ['```', '![alt](a.png)', '```', '', '![alt](a.png)', ''].join('\r\n');
+
+  const output = transformImageTargets(markdown, () => 'REWRITTEN');
+
+  assert.equal(output, ['```', '![alt](a.png)', '```', '', '![alt](REWRITTEN)', ''].join('\r\n'));
+});
+
+test('inlineAssets reports nothing for a missing image documented in a CRLF fence (#99)', (t) => {
+  const dir = tempDir(t);
+  const markdown = ['```', '![a](images/missing.png)', '```', '![b](images/logo.png)', ''].join('\r\n');
+  const context = contextFor(dir, markdown);
+  writePng(path.join(dir, 'source'), 'images/logo.png');
+
+  const warnings = inlineAssets(context);
+
+  const output = fs.readFileSync(context.convertedMarkdown, 'utf8');
+  assert.deepEqual(warnings, []);
+  assert.equal(output.includes('![a](images/missing.png)\r\n'), true, output);
+  assert.equal(output.includes(`![b](data:image/png;base64,${PNG_BASE64})\r\n`), true, output);
+});
+
 test('transformImageTargets skips HTML comment blocks (#47)', () => {
   const markdown = ['<!--', '![alt](a.png)', '-->', '', '![alt](a.png)'].join('\n');
 

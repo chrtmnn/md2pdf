@@ -34,6 +34,7 @@ import { TempRegistry } from './steps/temp-registry';
 import { runToc, shouldRunToc } from './steps/run-toc';
 import { describeMissingMarkerBlock, scanTocMarkers } from './steps/toc-markers';
 import { describeStylesheet } from './steps/stylesheet-lookup';
+import { InterruptedError } from './steps/tool-invocation';
 import { ConversionContext, ConverterOptions, ToolRunner } from './types';
 
 /**
@@ -104,7 +105,8 @@ export function formatError(error: unknown): string {
  * @param options - Resolved converter options for the run.
  * @param deps - Reporter, temp-directory registry and tool runner.
  * @returns The process exit code: `0` when everything converted, `1` when any
- *   file failed, was skipped, or the run was aborted before converting.
+ *   file failed, was skipped, or the run was aborted before converting, and
+ *   `130`/`143` when Ctrl-C or SIGTERM stopped a tool (#98).
  */
 export function runPipeline(args: string[], options: ConverterOptions, deps: PipelineDependencies): number {
   const { reporter, tempDirs, run } = deps;
@@ -156,7 +158,8 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
           return result;
         } catch (error) {
           reporter.clearStatus();
-          if (!reporter.interactive) {
+          // An interrupt is not a failure of the step; the run says so once.
+          if (!reporter.interactive && !(error instanceof InterruptedError)) {
             reporter.error(`${name} · ${label} failed`);
           }
           throw error;
@@ -238,6 +241,9 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
   // Rejected non-Markdown positionals count like missing files; a merged run
   // reports them through skippedCount instead.
   let failedCount = options.merge ? 0 : inputs.rejected.length;
+  // Set when Ctrl-C or SIGTERM stopped a tool; ends the loop after the file's
+  // own cleanup (#98).
+  let interrupted: InterruptedError | undefined;
 
   // Resolve the effective stylesheet once for all files. The temp dir receives
   // the self-contained copy when the stylesheet has local references to
@@ -338,6 +344,13 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
         }
         convertedCount++;
       } catch (error) {
+        // The tool died with the user's Ctrl-C. Moving on would start the next
+        // file's tools, which the signal never reaches, so the run stops here;
+        // `finally` below still cleans this file up (#98).
+        if (error instanceof InterruptedError) {
+          interrupted = error;
+          break;
+        }
         progress.failed(formatError(error));
         failedCount++;
       } finally {
@@ -369,6 +382,11 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
     if (merged) {
       tempDirs.unregister(merged.mergeDir);
     }
+  }
+
+  if (interrupted) {
+    reporter.outro('Conversion interrupted');
+    return interrupted.exitCode;
   }
 
   if (merged) {

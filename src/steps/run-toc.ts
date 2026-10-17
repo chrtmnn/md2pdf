@@ -93,7 +93,9 @@ export function runToc(
         : markerLines(source, markers.startIndex, markers.endIndex);
   }
 
-  context.inputMarkdown = path.join(context.workdir, context.baseName);
+  // Named after the temp stem rather than the source file name, which is not
+  // shortened and could push the path past MAX_PATH on Windows (#100).
+  context.inputMarkdown = path.join(context.workdir, `${context.tempStem}.md`);
   const result = backend.generate({
     markdown: source,
     block,
