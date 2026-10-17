@@ -36,6 +36,15 @@ export function parseMergeName(value: string): string {
     );
   }
 
+  // `--merge "a.md" "b.md"` reads as "merge these files", but Commander takes
+  // the first file as the name: one document was merged into `a.md.pdf` and
+  // nothing said so (#84).
+  if (/\.md$/i.test(name)) {
+    throw new Error(
+      `Invalid --merge name: ${value}. --merge takes the PDF base name first, then the files: --merge <name> <files...>.`,
+    );
+  }
+
   return name;
 }
 
