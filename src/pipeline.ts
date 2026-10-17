@@ -20,7 +20,6 @@ import path from 'path';
 import { cleanup } from './steps/cleanup';
 import { assertOutputReplaceable, copyOutput } from './steps/copy-output';
 import { describeUnusedCssVar, findUnusedCssVars } from './steps/css-var-usage';
-import { describeMissingMarkerBlock, scanDoctocMarkers } from './steps/doctoc-markers';
 import { MergedInput, mergeMarkdown } from './steps/merge-markdown';
 import { describeOutputCollisions, findOutputCollisions } from './steps/output-targets';
 import { resolveInputs } from './steps/resolve-inputs';
@@ -32,7 +31,8 @@ import { hasMermaidFences, renderMermaid } from './steps/render-mermaid';
 import { renderHtml } from './steps/render-html';
 import { renderPdf } from './steps/render-pdf';
 import { TempRegistry } from './steps/temp-registry';
-import { runDoctoc, shouldRunDoctoc } from './steps/run-doctoc';
+import { runToc, shouldRunToc } from './steps/run-toc';
+import { describeMissingMarkerBlock, scanTocMarkers } from './steps/toc-markers';
 import { describeStylesheet } from './steps/stylesheet-lookup';
 import { ConversionContext, ConverterOptions, ToolRunner } from './types';
 
@@ -229,7 +229,7 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
 
   // `--merge` concatenates the resolved Markdown before rendering and then
   // feeds the pipeline a single file, so every other flag keeps working
-  // unchanged and doctoc produces one TOC spanning all documents.
+  // unchanged and the ToC backend produces one TOC spanning all documents.
   let merged: MergedInput | undefined;
   let runOptions = options;
   let filesToConvert = inputs.files;
@@ -296,12 +296,12 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
         // rendering, so a protected output fails the file without side effects.
         assertOutputReplaceable(active);
         // `-u` only refreshes an existing marker block. A broken pair is
-        // reported by runDoctoc, and a merged run cannot carry `-u`.
-        if (options.writeToc && scanDoctocMarkers(fs.readFileSync(active.sourceFile, 'utf8')).kind === 'none') {
+        // reported by runToc, and a merged run cannot carry `-u`.
+        if (options.writeToc && scanTocMarkers(fs.readFileSync(active.sourceFile, 'utf8')).kind === 'none') {
           progress.warn(describeMissingMarkerBlock(active.sourceFile, options.toc === 'always'));
         }
-        if (shouldRunDoctoc(options, active.sourceFile)) {
-          progress.run('Table of contents', () => runDoctoc(active, run));
+        if (shouldRunToc(options, active.sourceFile)) {
+          progress.run('Table of contents', () => runToc(active, run));
         }
         if (options.title) {
           // An explicit title beats both the first heading and the name a
@@ -313,7 +313,7 @@ export function runPipeline(args: string[], options: ConverterOptions, deps: Pip
           progress.run('Extracting document title', () => extractTitle(active));
         }
         // `inputMarkdown` rather than the source file: that is what
-        // renderMermaid reads, and doctoc may have replaced it with the temp
+        // renderMermaid reads, and runToc may have replaced it with the temp
         // copy in between (#51).
         if (hasMermaidFences(active.inputMarkdown)) {
           progress.run('Rendering Mermaid diagrams', () => renderMermaid(active, run));

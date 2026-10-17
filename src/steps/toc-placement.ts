@@ -1,29 +1,24 @@
 /**
  * Pure text transformation behind the TOC relocation performed by
- * `run-doctoc.ts`. Kept separate from that file so the placement rules —
+ * `run-toc.ts`. Kept separate from that file so the placement rules —
  * blank-line hygiene, line-ending preservation and the byte-identical no-op —
- * can be exercised as plain string in / string out, without doctoc, `npx`, or
- * a temp directory. `run-doctoc.ts` owns the file I/O; this module owns the
- * rules.
+ * can be exercised as plain string in / string out, without a ToC backend,
+ * `npx`, or a temp directory. `run-toc.ts` owns the file I/O; this module owns
+ * the rules.
  */
 
-import { BOM, classifyLines, findFirstH2Index, findFrontmatterEnd, isBlank } from './markdown-scan';
-
-/** Opening marker of a doctoc-generated table of contents block. */
-export const DOCTOC_MARKER = '<!-- START doctoc generated TOC';
-
-/** Closing marker of a doctoc-generated table of contents block. */
-export const DOCTOC_END_MARKER =
-  '<!-- END doctoc generated TOC please keep comment here to allow auto update -->';
+import { BOM, findFirstH2Index, findFrontmatterEnd, isBlank } from './markdown-scan';
+import { TocBlock } from './toc-backend';
+import { scanTocMarkers } from './toc-markers';
 
 /**
- * Removes the doctoc block `[startIdx, endIdx]` from `lines`, collapsing
+ * Removes the TOC block `[startIdx, endIdx]` from `lines`, collapsing
  * the blank-line seam left behind so the removal doesn't produce a doubled
  * blank line.
  *
  * @param lines - Full document lines, without line terminators.
- * @param startIdx - Index of the doctoc start-marker line.
- * @param endIdx - Index of the doctoc end-marker line.
+ * @param startIdx - Index of the start-marker line.
+ * @param endIdx - Index of the end-marker line.
  * @returns The document lines with the block removed, and the removed
  *   block itself.
  */
@@ -54,12 +49,12 @@ function removeBlockCollapsingSeam(
 }
 
 /**
- * Re-inserts the doctoc block directly before `lines[h2Idx]`, ensuring
+ * Re-inserts the TOC block directly before `lines[h2Idx]`, ensuring
  * exactly one blank line on each side of the block (no leading blank when
  * the block lands at the very top of the file).
  *
- * @param lines - Document lines with the doctoc block already removed.
- * @param block - The doctoc block lines to re-insert.
+ * @param lines - Document lines with the TOC block already removed.
+ * @param block - The TOC block lines to re-insert.
  * @param h2Idx - Index (within `lines`) of the first `##`-equivalent heading.
  * @returns The document lines with the block re-inserted.
  */
@@ -82,13 +77,14 @@ function insertBlockBeforeIndex(lines: string[], block: string[], h2Idx: number)
 }
 
 /**
- * Relocates a freshly created doctoc block so it sits directly before the
+ * Relocates a freshly created TOC block so it sits directly before the
  * first second-order (`##`) heading in the document, instead of wherever
- * doctoc's own default placement chose (by default, near the top of the
- * file). Returns the input unchanged when the document has no doctoc block,
- * when no `##`-equivalent heading exists anywhere (doctoc's placement is left
- * untouched), or when the block already sits directly before the first `##`
- * heading — in which case the returned string is byte-identical to the input.
+ * the backend's own default placement chose (doctoc: near the top of the
+ * file). Returns the input unchanged when the document has no TOC block,
+ * when no `##`-equivalent heading exists anywhere (the backend's placement is
+ * left untouched), or when the block already sits directly before the first
+ * `##` heading — in which case the returned string is byte-identical to the
+ * input.
  *
  * The document's dominant line ending (`\r\n` when the input contains one,
  * `\n` otherwise) and the presence or absence of a trailing newline are
@@ -101,24 +97,28 @@ function insertBlockBeforeIndex(lines: string[], block: string[], h2Idx: number)
  * look like a setext heading underline.
  *
  * @param raw - Full Markdown document contents.
+ * @param block - Where the block is, as a backend reports it. Without it the
+ *   first genuine block of any registry marker is relocated (see
+ *   {@link scanTocMarkers}).
  * @returns The document with the TOC block relocated, or `raw` unchanged.
  */
-export function relocateTocBeforeFirstH2(raw: string): string {
+export function relocateTocBeforeFirstH2(raw: string, block?: TocBlock): string {
   // A BOM sits before the first character of line 1, where it would hide a
   // frontmatter delimiter or a setext heading from the scan below. It is
   // detached for the duration and put back verbatim, so a document that
   // carries one keeps it (#48).
   const bom = raw.startsWith(BOM) ? BOM : '';
-  return bom + relocateInBody(bom ? raw.slice(BOM.length) : raw);
+  return bom + relocateInBody(bom ? raw.slice(BOM.length) : raw, block);
 }
 
 /**
  * The relocation itself, on a document guaranteed to start without a BOM.
  *
  * @param raw - Document contents without a leading BOM.
+ * @param block - Where the block is, if known.
  * @returns The document with the TOC block relocated, or `raw` unchanged.
  */
-function relocateInBody(raw: string): string {
+function relocateInBody(raw: string, block?: TocBlock): string {
   const eol = raw.includes('\r\n') ? '\r\n' : '\n';
   const hadTrailingNewline = raw.endsWith('\n');
 
@@ -127,28 +127,20 @@ function relocateInBody(raw: string): string {
     lines.pop();
   }
 
-  // A doctoc marker is an HTML comment, so only a line that genuinely opens
-  // one counts. A plain `includes` would also find the markers a document
-  // merely *shows* inside a fenced example and relocate those lines instead
-  // of the real TOC (#47).
-  const kinds = classifyLines(lines);
-
-  const startIdx = lines.findIndex((line, i) => kinds[i] === 'comment-start' && line.includes(DOCTOC_MARKER));
-  if (startIdx === -1) {
+  // A marker is an HTML comment, so only a line that genuinely opens one
+  // counts. A plain `includes` would also find the markers a document merely
+  // *shows* inside a fenced example and relocate those lines instead of the
+  // real TOC (#47). Line indexes are the same with or without the BOM.
+  const found = block ?? scanTocMarkers(raw);
+  if (!('startIndex' in found) || found.endIndex >= lines.length) {
     return raw;
   }
+  const { startIndex: startIdx, endIndex: endIdx } = found;
 
-  const endIdx = lines.findIndex(
-    (line, i) => i >= startIdx && kinds[i] !== 'fence' && kinds[i] !== 'content' && line.includes(DOCTOC_END_MARKER),
-  );
-  if (endIdx === -1) {
-    return raw;
-  }
-
-  const { withoutBlock, block } = removeBlockCollapsingSeam(lines, startIdx, endIdx);
+  const { withoutBlock, block: blockLines } = removeBlockCollapsingSeam(lines, startIdx, endIdx);
 
   // Frontmatter detection runs on `withoutBlock` (post-removal), so it
-  // stays correct even if doctoc's block had ended up inside or right
+  // stays correct even if the backend's block had ended up inside or right
   // after the frontmatter: removal never shifts the leading lines, so the
   // frontmatter's own indices are unaffected either way.
   const frontmatterEnd = findFrontmatterEnd(withoutBlock);
@@ -158,11 +150,11 @@ function relocateInBody(raw: string): string {
   if (relativeH2Idx === -1) {
     // No `##`-equivalent heading anywhere in the searchable region (either
     // no such heading exists, or the document is frontmatter-only): leave
-    // doctoc's own placement untouched.
+    // the backend's own placement untouched.
     return raw;
   }
   const h2Idx = searchStart + relativeH2Idx;
 
-  const finalLines = insertBlockBeforeIndex(withoutBlock, block, h2Idx);
+  const finalLines = insertBlockBeforeIndex(withoutBlock, blockLines, h2Idx);
   return finalLines.join(eol) + (hadTrailingNewline ? eol : '');
 }

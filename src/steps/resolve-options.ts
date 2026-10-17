@@ -57,8 +57,8 @@ export function collect(value: string, previous: string[] = []): string[] {
  * mode.
  *
  * Commander reports `toc` as `undefined` when neither flag is given, which is
- * the automatic behaviour: doctoc runs exactly for a source that carries
- * genuine markers.
+ * the automatic behaviour: the ToC step runs exactly for a source that
+ * carries a genuine table of contents marker.
  *
  * @param rawOptions - Parsed Commander options.
  * @returns The table-of-contents mode for the run.

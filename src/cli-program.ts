@@ -70,7 +70,7 @@ export function createProgram(): Command {
     // "(default: [])" (#59). `collect` starts the list instead.
     .addOption(new Option('--css-var <name=value>', 'Override a CSS custom property, repeatable').argParser(collect))
     .optionsGroup('TOC:')
-    .option('--toc', 'Build a table of contents even when the source has no doctoc markers')
+    .option('--toc', 'Build a table of contents even when the source has no table of contents markers')
     .option('--no-toc', 'Never build or refresh a table of contents')
     .option('-u, --write-toc', 'Write the refreshed table of contents back into the source Markdown')
     .optionsGroup('Diagrams:')
