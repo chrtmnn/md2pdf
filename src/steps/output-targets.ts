@@ -47,10 +47,13 @@ export const GENERATOR_MARKER_SCAN_BYTES = 64 * 1024;
 const MAX_NAME_BYTES = 255;
 
 /**
- * Longest suffix appended to the shortened stem: `_converted.html` for the
- * temp files, well past `_XXXXXX` for the `mkdtempSync` directory name.
+ * Longest suffix appended to the shortened stem: a Mermaid asset, which
+ * mermaid-cli names after the converted Markdown file and numbers per diagram
+ * (`_converted-1.svg`, `_converted-12.png`). That is longer than
+ * `_converted.html` (#100); 999 diagrams leave a generous margin, and the
+ * suffix is well past `_XXXXXX` for the `mkdtempSync` directory name.
  */
-const LONGEST_TEMP_SUFFIX = '_converted.html'.length;
+const LONGEST_TEMP_SUFFIX = '_converted-999.svg'.length;
 
 /** Random suffix `mkdtempSync` appends to the directory name. */
 const MKDTEMP_SUFFIX = '_XXXXXX'.length;
@@ -97,7 +100,7 @@ export function sanitizeStemForTemp(stem: string): string {
  * `MAX_PATH`, which the longest generated path has to fit:
  *
  * ```text
- * <baseDir>\<stem>_XXXXXX\<stem>_converted.html
+ * <baseDir>\<stem>_XXXXXX\<stem>_converted-999.svg
  * ```
  *
  * The stem appears twice there, hence the halved budget below. Only *temp*
@@ -118,7 +121,7 @@ export function shortenStemForTemp(stem: string, baseDir?: string, rules: PathRu
   let limit = MAX_NAME_BYTES - LONGEST_TEMP_SUFFIX;
 
   if (baseDir !== undefined && rules.maxPathLength !== undefined) {
-    // baseDir + separator + <stem>_XXXXXX + separator + <stem>_converted.html
+    // baseDir + separator + <stem>_XXXXXX + separator + <stem>_converted-999.svg
     const fixed = baseDir.length + 2 + MKDTEMP_SUFFIX + LONGEST_TEMP_SUFFIX;
     const perStem = Math.floor((rules.maxPathLength - fixed) / 2);
 

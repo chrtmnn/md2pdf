@@ -1,7 +1,13 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import { PackageOverrides, ToolName } from '../types';
-import { formatExecError, resolveToolInvocation, ToolEnvironment } from './tool-invocation';
+import {
+  formatExecError,
+  InterruptedError,
+  interruptSignal,
+  resolveToolInvocation,
+  ToolEnvironment,
+} from './tool-invocation';
 
 type RunToolOptions = {
   verbose: boolean;
@@ -78,7 +84,9 @@ export function resolveToolTimeout(env: NodeJS.ProcessEnv = process.env): number
  *
  * The child is given a wall-clock timeout and a generous output buffer, so a
  * wedged Chromium ends the run instead of blocking it forever and a chatty
- * failure is not turned into an `ENOBUFS` error (#51).
+ * failure is not turned into an `ENOBUFS` error (#51). A tool stopped by
+ * Ctrl-C or SIGTERM throws an {@link InterruptedError}, which ends the whole
+ * run instead of failing only the current file (#98).
  *
  * @param tool - Tool to run.
  * @param args - Arguments for the tool's CLI.
@@ -100,6 +108,10 @@ export function runTool(tool: ToolName, args: string[], options: RunToolOptions)
       stdio: options.verbose ? 'inherit' : 'pipe',
     });
   } catch (error) {
+    const signal = interruptSignal(error);
+    if (signal) {
+      throw new InterruptedError(signal);
+    }
     throw new Error(formatExecError(error, label, timeout));
   }
 }

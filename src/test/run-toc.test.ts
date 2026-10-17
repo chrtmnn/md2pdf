@@ -98,6 +98,25 @@ test('a genuine START marker without an END marker fails before doctoc runs (#44
   assert.equal(fs.readFileSync(sourceFile, 'utf8'), before, 'the source file is untouched');
 });
 
+test('the temp copy is named after the temp stem, not the unshortened file name (#100)', (t) => {
+  const dir = tempDir(t);
+  const longName = `${'very long file name '.repeat(6)}.md`;
+  const sourceFile = writeFile(dir, longName, `# Doc
+
+${START_MARKER}
+${END_MARKER}
+`);
+  const workdir = path.join(dir, 'work');
+  fs.mkdirSync(workdir);
+  const context = makeContext({ sourceFile, workdir, tempStem: 'short' });
+
+  const tools = run(context);
+
+  assert.equal(path.basename(context.inputMarkdown), 'short.md');
+  assert.equal(path.dirname(context.inputMarkdown), workdir);
+  assert.deepEqual(tools.callsTo('doctoc')[0].args, [context.inputMarkdown]);
+});
+
 test('a brand-new TOC gets the own marker and is relocated before the first second-order heading (#83)', (t) => {
   const { context, sourceFile } = fixture(t, ['# Title', '', 'Intro.', '', '## Section', '', 'Body.']);
 

@@ -21,6 +21,7 @@ import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { runPipeline } from '../pipeline';
 import { createTempRegistry } from '../steps/temp-registry';
+import { InterruptedError } from '../steps/tool-invocation';
 import { ConverterOptions } from '../types';
 import {
   createFakeTools,
@@ -222,6 +223,55 @@ test('a failing step fails only its file and the run carries on (#51)', (t) => {
   run.registered.forEach((directory) => {
     assert.equal(fs.existsSync(directory), false, `${directory} was removed`);
   });
+});
+
+test('Ctrl-C during a tool ends the whole run with 130 and cleans up (#98)', (t) => {
+  const dir = tempDir(t);
+  const first = writeFile(dir, 'a.md', '# A\n');
+  const second = writeFile(dir, 'b.md', '# B\n');
+
+  const run = runFixture(
+    t,
+    [first, second],
+    { tempRoot: path.join(dir, 'temp') },
+    {
+      mdToPdf: () => {
+        throw new InterruptedError('SIGINT');
+      },
+    },
+  );
+
+  assert.equal(run.code, 130);
+  assert.equal(run.reporter.outro(), 'Conversion interrupted');
+  assert.equal(run.tools.callsTo('mdToPdf').length, 1, 'the second file never started');
+  assert.equal(fs.existsSync(path.join(dir, 'b.pdf')), false);
+  assert.equal(run.reporter.has('error', 'failed'), false, 'an interrupt is not reported as a failed step');
+  assert.deepEqual(run.live, [], 'every temp directory was unregistered');
+  run.registered.forEach((directory) => {
+    assert.equal(fs.existsSync(directory), false, `${directory} was removed`);
+  });
+});
+
+test('SIGTERM during a merged run ends it with 143 (#98)', (t) => {
+  const dir = tempDir(t);
+  const first = writeFile(dir, 'a.md', '# A\n');
+  const second = writeFile(dir, 'b.md', '# B\n');
+
+  const run = runFixture(
+    t,
+    [first, second],
+    { merge: 'book', tempRoot: path.join(dir, 'temp') },
+    {
+      mdToPdf: () => {
+        throw new InterruptedError('SIGTERM');
+      },
+    },
+  );
+
+  assert.equal(run.code, 143);
+  assert.equal(run.reporter.outro(), 'Conversion interrupted');
+  assert.equal(fs.existsSync(path.join(dir, 'book.pdf')), false);
+  assert.deepEqual(run.live, []);
 });
 
 test('names the failing step on its own line when there is no live line to end', (t) => {

@@ -225,6 +225,81 @@ export function locateNpxInvocation(
   return { file: execPath, leadingArgs: [npxCli] };
 }
 
+/** The signals that end the whole run when they stop a tool (#98). */
+export type InterruptSignal = 'SIGINT' | 'SIGTERM';
+
+/**
+ * Thrown instead of a tool failure when the tool was stopped by Ctrl-C or
+ * SIGTERM, so the run ends instead of moving on to the next file (#98).
+ */
+export class InterruptedError extends Error {
+  /** The signal that stopped the tool. */
+  readonly signal: InterruptSignal;
+
+  /**
+   * @param signal - The signal that stopped the tool.
+   */
+  constructor(signal: InterruptSignal) {
+    super(`Interrupted by ${signal}`);
+    this.name = 'InterruptedError';
+    this.signal = signal;
+  }
+
+  /** 128 + the signal number, the shell convention for a terminated process. */
+  get exitCode(): number {
+    return this.signal === 'SIGINT' ? 130 : 143;
+  }
+}
+
+/**
+ * `STATUS_CONTROL_C_EXIT`, the exit status of a Windows process ended by a
+ * console Ctrl-C, unsigned and as a signed 32-bit value.
+ */
+const WINDOWS_CTRL_C_EXIT = [0xc000013a, -0x3ffffec6];
+
+/**
+ * Tells whether a failed tool run was stopped by the user rather than failing
+ * on its own.
+ *
+ * Ctrl-C reaches the whole process group, so the tool dies with it. md2pdf's
+ * own signal handler cannot react to it while the run is going: the pipeline
+ * is synchronous, and the handler only runs once the main event loop turns
+ * again, which is after the last file (#98). The failed tool run is the one
+ * place where control comes back, so the interrupt is recognised there:
+ *
+ * - killed by `SIGINT`/`SIGTERM` (POSIX);
+ * - exit status 130/143, which a tool that catches the signal itself uses —
+ *   Puppeteer, inside md-to-pdf and mermaid-cli, exits with 130 on SIGINT;
+ * - `STATUS_CONTROL_C_EXIT` (Windows).
+ *
+ * A timeout also kills the tool with SIGTERM, but that is md2pdf's own doing,
+ * not the user's, and stays an ordinary failure.
+ *
+ * @param error - Value thrown by `execFileSync`.
+ * @returns The signal to end the run with, or `undefined` for an ordinary failure.
+ */
+export function interruptSignal(error: unknown): InterruptSignal | undefined {
+  if (typeof error !== 'object' || error === null) {
+    return undefined;
+  }
+
+  const { code, signal, status } = error as { code?: unknown; signal?: unknown; status?: unknown };
+  if (code === 'ETIMEDOUT') {
+    return undefined;
+  }
+  if (signal === 'SIGINT' || signal === 'SIGTERM') {
+    return signal;
+  }
+  if (status === 130 || WINDOWS_CTRL_C_EXIT.includes(status as number)) {
+    return 'SIGINT';
+  }
+  if (status === 143) {
+    return 'SIGTERM';
+  }
+
+  return undefined;
+}
+
 /**
  * Builds the message for a failed tool run.
  *

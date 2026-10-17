@@ -30,8 +30,8 @@ test('derives every context path from the source file', (t) => {
   const context = prepareWorkdir(file, makeOptions())!;
   removeAfter(t, context.workdir);
 
-  assert.equal(context.baseName, 'My Report.md');
   assert.equal(context.stem, 'My Report');
+  assert.equal(context.tempStem, 'My_Report');
   assert.equal(comparablePath(context.sourceDir), comparablePath(dir));
   assert.equal(comparablePath(context.sourceFile), comparablePath(file));
   assert.equal(context.docTitle, 'My Report', 'the stem is the fallback title');

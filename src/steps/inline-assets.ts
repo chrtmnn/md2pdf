@@ -192,7 +192,11 @@ function formatMarkdownTarget(target: string): string {
  */
 export function transformImageTargets(markdown: string, transform: TargetTransform): string {
   const lines = markdown.split('\n');
-  const kinds = classifyLines(lines);
+  // Classified without the `\r` a CRLF document leaves on every line: the
+  // fence matcher does not expect one, so a CRLF fence was never recognised
+  // and the examples inside it were embedded (#99). The lines themselves are
+  // rewritten with their `\r`, so the line endings survive.
+  const kinds = classifyLines(lines.map((line) => line.replace(/\r$/, '')));
 
   const rewritten = lines.map((line, index) => {
     // Only lines that render as Markdown are rewritten. Delegating the

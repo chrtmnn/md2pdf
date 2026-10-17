@@ -132,8 +132,7 @@ export function makeContext({
   ...overrides
 }: Partial<ConversionContext> & { sourceFile: string }): ConversionContext {
   const sourceFile = path.resolve(rawSourceFile);
-  const baseName = path.basename(sourceFile);
-  const stem = path.parse(baseName).name;
+  const stem = path.parse(path.basename(sourceFile)).name;
   const sourceDir = path.dirname(sourceFile);
   const workdir = overrides.workdir ?? sourceDir;
   const targetDir = overrides.targetDir ?? sourceDir;
@@ -142,8 +141,8 @@ export function makeContext({
     options: makeOptions(),
     sourceFile,
     sourceDir,
-    baseName,
     stem,
+    tempStem: stem,
     workdir,
     inputMarkdown: sourceFile,
     convertedMarkdown: path.join(workdir, `${stem}_converted.md`),
