@@ -16,7 +16,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { runToc, shouldRunToc } from '../steps/run-toc';
-import { DOCTOC_BACKEND } from '../steps/doctoc-backend';
+import { DOCTOC_BACKEND, DOCTOC_NOTE_LINE } from '../steps/doctoc-backend';
 import { TocBackend } from '../steps/toc-backend';
 import { OWN_TOC_MARKER, TOC_MARKERS, TocMarkerEntry } from '../steps/toc-markers';
 import { ConversionContext } from '../types';
@@ -47,15 +47,17 @@ const OWN_END = OWN_TOC_MARKER.end;
  * @param t - Active test context.
  * @param lines - Source document, line by line.
  * @param options - Converter options for the run.
+ * @param eol - Line ending of the source file.
  * @returns The context and the source file's path.
  */
 function fixture(
   t: TestContext,
   lines: string[],
   options = makeOptions(),
+  eol = '\n',
 ): { context: ConversionContext; sourceFile: string } {
   const dir = tempDir(t);
-  const sourceFile = writeFile(dir, 'doc.md', `${lines.join('\n')}\n`);
+  const sourceFile = writeFile(dir, 'doc.md', `${lines.join(eol)}${eol}`);
   const workdir = path.join(dir, 'work');
   fs.mkdirSync(workdir);
 
@@ -264,6 +266,33 @@ test('-u writes an own-marker refresh back with the marker lines the author wrot
   assert.equal(
     fs.readFileSync(sourceFile, 'utf8'),
     ['# Title', '', OWN_START, '', '- [Generated](#generated)', '', OWN_END, '', '## Section', ''].join('\n'),
+  );
+});
+
+test('-u writes a CRLF refresh back under either marker, CRLF throughout (#105)', (t) => {
+  const own = fixture(
+    t,
+    ['# Title', '', OWN_START, '- [stale](#stale)', OWN_END, '', '## Section', '', 'Body.'],
+    makeOptions({ writeToc: true }),
+    '\r\n',
+  );
+  run(own.context, { doctoc: inProcessDoctoc });
+  const ownExpected = ['# Title', '', OWN_START, '', '- [Section](#section)', '', OWN_END, '', '## Section', '', 'Body.', ''];
+  assert.equal(fs.readFileSync(own.sourceFile, 'utf8'), ownExpected.join('\r\n'));
+  assert.equal(fs.readFileSync(own.context.inputMarkdown, 'utf8'), ownExpected.join('\r\n'), 'the temp copy gains no line');
+
+  const doctoc = fixture(
+    t,
+    ['# Title', '', START_MARKER, DOCTOC_NOTE_LINE, '- [stale](#stale)', END_MARKER, '', '## Section'],
+    makeOptions({ writeToc: true }),
+    '\r\n',
+  );
+  run(doctoc.context, { doctoc: inProcessDoctoc });
+  assert.equal(
+    fs.readFileSync(doctoc.sourceFile, 'utf8'),
+    ['# Title', '', START_MARKER, DOCTOC_NOTE_LINE, '', '- [Section](#section)', '', END_MARKER, '', '## Section', ''].join(
+      '\r\n',
+    ),
   );
 });
 

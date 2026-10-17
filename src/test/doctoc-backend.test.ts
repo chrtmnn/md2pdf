@@ -12,6 +12,7 @@
 import fs from 'fs';
 import path from 'path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DOCTOC_BACKEND,
@@ -62,6 +63,26 @@ function roundTrip(markdown: string, markers?: { start: string; end: string }) {
   const prepared = prepareDoctocInput(markdown, block);
   const result = doctocTransform(prepared);
   return readDoctocOutput(result.transformed ? (result.data ?? '') : prepared, markers);
+}
+
+/**
+ * Runs the backend itself, with the real doctoc transform on its scratch file.
+ *
+ * @param t - Active test context.
+ * @param markdown - The document to fill; its first genuine block is the one requested.
+ * @param markers - The marker lines to request; absent for doctoc's own.
+ * @returns The finished document.
+ */
+function generate(t: TestContext, markdown: string, markers?: { start: string; end: string }): string {
+  const found = scanTocMarkers(markdown);
+  return DOCTOC_BACKEND.generate({
+    markdown,
+    block: found.kind === 'pair' ? { startIndex: found.startIndex, endIndex: found.endIndex } : undefined,
+    markers,
+    file: path.join(tempDir(t), 'doc.md'),
+    options: makeOptions(),
+    run: createFakeTools({ doctoc: inProcessDoctoc }).run,
+  }).markdown;
 }
 
 test('masking round-trips byte-identically and leaves the block alone', () => {
@@ -233,25 +254,52 @@ test('a block doctoc does not recognise is reported, not duplicated (#83)', () =
 
 test('a leading BOM is kept out of doctoc and put back, for either marker (#83)', (t) => {
   const bom = String.fromCharCode(0xfeff);
-  const file = path.join(tempDir(t), 'doc.md');
-  const generate = (markdown: string, markers?: { start: string; end: string }) => {
-    const found = scanTocMarkers(markdown);
-    return DOCTOC_BACKEND.generate({
-      markdown,
-      block: found.kind === 'pair' ? { startIndex: found.startIndex, endIndex: found.endIndex } : undefined,
-      markers,
-      file,
-      options: makeOptions(),
-      run: createFakeTools({ doctoc: inProcessDoctoc }).run,
-    }).markdown;
-  };
 
-  const own = generate(`${bom}${doc(['# T', '', OWN_START, OWN_END, '', '## A'])}`, OWN_TOC_MARKER);
+  const own = generate(t, `${bom}${doc(['# T', '', OWN_START, OWN_END, '', '## A'])}`, OWN_TOC_MARKER);
   assert.equal(own, `${bom}${doc(['# T', '', OWN_START, '', '- [A](#a)', '', OWN_END, '', '## A'])}`);
 
-  const doctoc = generate(`${bom}${doc(['# T', '', START, END, '', '## A'])}`);
+  const doctoc = generate(t, `${bom}${doc(['# T', '', START, END, '', '## A'])}`);
   assert.equal(doctoc, `${bom}${doc(['# T', '', START, DOCTOC_NOTE_LINE, '', '- [A](#a)', '', END, '', '## A'])}`);
 
-  const tight = generate(`${bom}${doc(['# Title', START, END, '', '## A'])}`);
+  const tight = generate(t, `${bom}${doc(['# Title', START, END, '', '## A'])}`);
   assert.ok(tight.startsWith(`${bom}# Title\n`), 'the heading above the block keeps its last character');
+});
+
+test('doctoc 2.5 leaves a stray line break behind a refreshed block in a CRLF document (#105)', () => {
+  // transform.js skips `+ 1` character after END instead of the line break,
+  // so `-->\r\n\r\n## A` becomes `-->\r\n\n\r\n## A`. The backend keeps CRLF
+  // away from doctoc because of this; once this test fails, doctoc fixed it.
+  const result = doctocTransform(doc(['# T', '', START, DOCTOC_NOTE_LINE, '- old', END, '', '## A'], '\r\n'));
+
+  assert.ok(result.data?.includes(`${END}\r\n\n\r\n## A`), JSON.stringify(result.data));
+});
+
+test('a CRLF document refreshes byte-correctly under either marker (#105)', (t) => {
+  const own = generate(t, doc(['# T', '', OWN_START, '- [old](#old)', OWN_END, '', '## A', ''], '\r\n'), OWN_TOC_MARKER);
+  assert.equal(own, doc(['# T', '', OWN_START, '', '- [A](#a)', '', OWN_END, '', '## A', ''], '\r\n'));
+
+  const doctoc = generate(t, doc(['# T', '', START, DOCTOC_NOTE_LINE, '- [old](#old)', END, '', '## A'], '\r\n'));
+  assert.equal(doctoc, doc(['# T', '', START, DOCTOC_NOTE_LINE, '', '- [A](#a)', '', END, '', '## A'], '\r\n'));
+
+  const bom = String.fromCharCode(0xfeff);
+  const withBom = generate(t, `${bom}${doc(['# T', '', START, END, '', '## A'], '\r\n')}`);
+  assert.equal(withBom, `${bom}${doc(['# T', '', START, DOCTOC_NOTE_LINE, '', '- [A](#a)', '', END, '', '## A'], '\r\n')}`);
+});
+
+test('a new block in a CRLF document is written with CRLF (#105)', (t) => {
+  const markdown = generate(t, doc(['# T', '', '## A', '', 'Body.'], '\r\n'), OWN_TOC_MARKER);
+
+  assert.equal(markdown.replace(/\r\n/g, '').includes('\n'), false, markdown);
+  assert.ok(markdown.endsWith('## A\r\n\r\nBody.\r\n'));
+});
+
+test('mixed line endings outside the block survive a refresh byte for byte (#105)', (t) => {
+  const before = '# T\n\r\n';
+  const after = '\r\n## A\n\nBody.\r\n';
+  const input = `${before}${OWN_START}\r\n- [old](#old)\n${OWN_END}${after}`;
+
+  const markdown = generate(t, input, OWN_TOC_MARKER);
+
+  assert.equal(markdown, `${before}${OWN_START}\r\n\r\n- [A](#a)\r\n\r\n${OWN_END}${after}`);
+  assert.equal(isTocOnlyRefresh(input, markdown), true);
 });
