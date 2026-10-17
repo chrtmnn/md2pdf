@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import { ConversionContext, ToolRunner } from '../types';
 import { runTool } from './run-tool';
 
@@ -10,6 +11,12 @@ const MERMAID_FENCE_RE = /^[ \t]{0,3}(?:```|~~~)\s*mermaid\b/m;
  * once embedded in a print PDF; 3 keeps PNG diagrams sharp at print resolution.
  */
 const PNG_PRINT_SCALE = 3;
+
+/**
+ * Puppeteer config passed to mermaid-cli (`-p`) when Chromium has to run
+ * without its sandbox, i.e. as root or with `MD2PDF_NO_SANDBOX=1` (#95).
+ */
+export const PUPPETEER_NO_SANDBOX_CONFIG = path.resolve(__dirname, '..', 'config', 'puppeteer.no-sandbox.config.json');
 
 /**
  * Detects whether a Markdown file contains at least one Mermaid code fence.
@@ -35,6 +42,10 @@ export function renderMermaid(context: ConversionContext, run: ToolRunner = runT
 
   if (context.options.png) {
     args.push('-e', 'png', '-s', String(PNG_PRINT_SCALE));
+  }
+
+  if (context.options.sandboxOff) {
+    args.push('-p', PUPPETEER_NO_SANDBOX_CONFIG);
   }
 
   run('mermaidCli', args, context.options);

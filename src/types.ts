@@ -1,3 +1,5 @@
+import type { SandboxOffReason } from './steps/chromium-sandbox';
+
 /**
  * A single CSS custom property override passed from the CLI.
  */
@@ -91,6 +93,11 @@ export type ConverterOptions = {
   title?: string;
   /** npx package selectors that replace the installed conversion tools. */
   packageOverrides: PackageOverrides;
+  /**
+   * Why Chromium runs without its sandbox — as root, or because
+   * `MD2PDF_NO_SANDBOX=1` asked for it — or `undefined` while it keeps it (#95).
+   */
+  sandboxOff?: SandboxOffReason;
 };
 
 /**

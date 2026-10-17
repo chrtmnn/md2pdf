@@ -10,8 +10,8 @@ import fs from 'fs';
 import path from 'path';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildMdToPdfArgs } from '../steps/md-to-pdf-args';
-import { hasMermaidFences, renderMermaid } from '../steps/render-mermaid';
+import { buildMdToPdfArgs, MD_TO_PDF_CONFIG, MD_TO_PDF_NO_SANDBOX_CONFIG } from '../steps/md-to-pdf-args';
+import { hasMermaidFences, PUPPETEER_NO_SANDBOX_CONFIG, renderMermaid } from '../steps/render-mermaid';
 import { renderHtml } from '../steps/render-html';
 import { renderPdf } from '../steps/render-pdf';
 import { createFakeTools, FAKE_HTML_CONTENT, makeContext, makeOptions, tempDir, writeFile } from './helpers';
@@ -51,6 +51,31 @@ test('--png asks mermaid-cli for PNG at print scale', (t) => {
   renderMermaid(context, tools.run);
 
   assert.deepEqual(tools.callsTo('mermaidCli')[0].args.slice(-4), ['-e', 'png', '-s', '3']);
+});
+
+test('without a sandbox, mermaid-cli gets the Puppeteer config (#95)', (t) => {
+  const dir = tempDir(t);
+  const sourceFile = writeFile(dir, 'doc.md', '# Doc\n');
+  const tools = createFakeTools();
+
+  renderMermaid(makeContext({ sourceFile, workdir: dir, options: makeOptions({ sandboxOff: 'root' }) }), tools.run);
+  renderMermaid(makeContext({ sourceFile, workdir: dir }), tools.run);
+
+  const [without, withSandbox] = tools.callsTo('mermaidCli');
+  assert.deepEqual(without.args.slice(-2), ['-p', PUPPETEER_NO_SANDBOX_CONFIG]);
+  assert.equal(withSandbox.args.includes('-p'), false, 'a sandboxed run passes no Puppeteer config');
+});
+
+test('without a sandbox, md-to-pdf gets the no-sandbox config for PDF and HTML (#95)', (t) => {
+  const dir = tempDir(t);
+  const sourceFile = writeFile(dir, 'doc.md', '# Doc\n');
+  const configOf = (args: string[]) => args[args.indexOf('--config-file') + 1];
+
+  assert.equal(configOf(buildMdToPdfArgs(makeContext({ sourceFile }))), MD_TO_PDF_CONFIG);
+  assert.equal(
+    configOf(buildMdToPdfArgs(makeContext({ sourceFile, options: makeOptions({ sandboxOff: 'env' }) }))),
+    MD_TO_PDF_NO_SANDBOX_CONFIG,
+  );
 });
 
 test('renderPdf passes the shared argument list and nothing else', (t) => {

@@ -15,6 +15,13 @@ import { ConversionContext } from '../types';
 export const MD_TO_PDF_CONFIG = path.resolve(__dirname, '..', 'config', 'md-to-pdf.config.json');
 
 /**
+ * {@link MD_TO_PDF_CONFIG} plus `launch_options.args: ["--no-sandbox"]`, used
+ * instead of it when Chromium has to run without its sandbox (#95). A second
+ * file rather than a second `--config-file`: md-to-pdf reads only one.
+ */
+export const MD_TO_PDF_NO_SANDBOX_CONFIG = path.resolve(__dirname, '..', 'config', 'md-to-pdf.no-sandbox.config.json');
+
+/**
  * Builds the md-to-pdf arguments that the PDF and the HTML render share.
  *
  * Both renders go through this one list so they see the same configuration
@@ -41,7 +48,7 @@ export function buildMdToPdfArgs(context: ConversionContext): string[] {
     // `# --version` aborted the run with a raw Node stack trace (#51).
     `--document-title=${context.docTitle}`,
     '--config-file',
-    MD_TO_PDF_CONFIG,
+    context.options.sandboxOff ? MD_TO_PDF_NO_SANDBOX_CONFIG : MD_TO_PDF_CONFIG,
   ];
 
   if (context.effectiveStylesheet) {

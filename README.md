@@ -52,6 +52,10 @@ pnpm add --global @chrtmnn/md2pdf
 pnpm approve-builds --global
 ```
 
+In a script, where nothing can answer the prompt, allow the download up front instead: `pnpm add --global --allow-build=puppeteer @chrtmnn/md2pdf`. A fresh machine also needs `PNPM_HOME` set and on the `PATH` (`pnpm setup` does that for interactive shells).
+
+**Running as root**: Chromium does not start as root with its sandbox on, which is how md2pdf runs in containers, CI images and cloud development environments. md2pdf therefore starts Chromium with `--no-sandbox` when it runs as root, and `--verbose` says so. To do the same for another user whose sandbox cannot start (for example where unprivileged user namespaces are blocked), set `MD2PDF_NO_SANDBOX=1`. Everywhere else the sandbox stays on. Only convert documents you trust without it.
+
 Releases are published from GitHub Actions with a provenance attestation; the package page on npmjs.com links each version to the commit and the workflow run that built it.
 
 **Upgrading from the PowerShell wrapper**: earlier versions were run from a clone of this repository, installed with `scripts\install.ps1`. Remove that clone's `bin` folder from your user `PATH` (*Edit environment variables for your account*), then install the package as above.
