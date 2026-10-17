@@ -91,7 +91,7 @@ md2pdf -R --merge handbook docs
 Combine a folder and one extra file into a single PDF with one table of contents spanning all documents:
 
 ```powershell
-md2pdf -f --merge handbook docs CHANGELOG.md
+md2pdf --toc --merge handbook docs CHANGELOG.md
 ```
 
 Write PDFs to an output directory:
@@ -109,7 +109,7 @@ md2pdf -u README.md
 Create a TOC on the temporary conversion copy even when the source file has no TOC markers:
 
 ```powershell
-md2pdf -f README.md
+md2pdf --toc README.md
 ```
 
 Show help:
@@ -151,7 +151,7 @@ md2pdf --png README.md
 | `--css-var <name=value>`     | Override a CSS custom property for this run. The leading `--` is optional. Repeat for multiple variables. A name the stylesheet never reads with `var()` produces a warning, which usually means a typo. |
 | `--toc`                      | Create or refresh a TOC on the temporary conversion copy, even without source TOC markers (see [Table of Contents Markers](#table-of-contents-markers)). |
 | `--no-toc`                   | Never create or refresh a TOC, not even for a file that carries TOC markers.                              |
-| `-u, --write-toc`            | Write the refreshed TOC back into the original Markdown file. Does not create a new source TOC; a file without a marker block gets a warning. Cannot be combined with `--merge`. |
+| `-u, --write-toc`            | Write the refreshed TOC back into the original Markdown file. Does not create a new source TOC; a file without a marker block gets a warning. Cannot be combined with `--merge` or `--no-toc`. |
 | `--png`                      | Render Mermaid diagrams as PNG instead of SVG. Useful for PDF viewers or downstream tools that handle embedded SVG poorly. |
 | `-v, --verbose`              | Print output from doctoc, mermaid-cli, and md-to-pdf while they run, one line per step.                   |
 | `--debug`                    | Shorthand for `--html --keep-temp --verbose`.                                                             |
@@ -332,9 +332,9 @@ Rules that apply to every marker:
 - If a file has a START marker without a matching END marker after it, the conversion of that file fails with an error and the file is left untouched. Otherwise the TOC would replace everything after the START marker.
 - A block keeps the marker lines you wrote, and a title line you put between the START marker and the list is kept on every refresh. With the `md2pdf` marker the filled block contains only the title and the TOC; doctoc's own markers come with doctoc's "DON'T EDIT" note, as before.
 
-If the source Markdown does not yet contain a marker block, pass `--toc` (or `-f`) to create one on the temporary conversion copy. The new block uses the `md2pdf` marker, is placed directly before the first second-order (`##`) heading in the file and gets the default "Table of Contents" title of the TOC tool. A marker block you add yourself starts without a title.
+If the source Markdown does not yet contain a marker block, pass `--toc` to create one on the temporary conversion copy. The new block uses the `md2pdf` marker, is placed directly before the first second-order (`##`) heading in the file and gets the default "Table of Contents" title of the TOC tool. A marker block you add yourself starts without a title.
 
-To also write the refreshed TOC back into the original Markdown file (instead of only into the temporary conversion copy), combine `-u` with an existing marker block. Nothing outside the block is changed, and the write-back is refused if the TOC tool changed anything else. `-u` never adds a marker block to the source file: on a file without one it leaves the file unchanged and prints a warning. `-u` cannot be combined with `--merge`, because a merged run converts a temporary combined copy of the files, not the files themselves.
+To also write the refreshed TOC back into the original Markdown file (instead of only into the temporary conversion copy), combine `-u` with an existing marker block. Nothing outside the block is changed, and the write-back is refused if the TOC tool changed anything else. `-u` never adds a marker block to the source file: on a file without one it leaves the file unchanged and prints a warning. `-u` cannot be combined with `--merge`, because a merged run converts a temporary combined copy of the files, not the files themselves, nor with `--no-toc`, which switches the refresh off.
 
 ### Mermaid Diagram Syntax
 

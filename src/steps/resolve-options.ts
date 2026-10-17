@@ -93,6 +93,14 @@ export function resolveOptions(program: Command): ConverterOptions {
     );
   }
 
+  // `-u` asks for a refreshed TOC and `--no-toc` forbids one, so the run
+  // used to succeed without touching the source and without a word (#103).
+  if (writeToc && rawOptions.toc === false) {
+    throw new Error(
+      '-u cannot be combined with --no-toc: -u writes a refreshed TOC back into the source file, and --no-toc switches the TOC refresh off.',
+    );
+  }
+
   const { cssVars, warnings: cssVarWarnings } = translateLegacyCssVars(parseCssVars(rawOptions.cssVar ?? []));
 
   // Relative values and bare names refer to the directory md2pdf was called
