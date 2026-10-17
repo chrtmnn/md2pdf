@@ -83,10 +83,13 @@ async function main(options: ConverterOptions): Promise<void> {
   };
 
   // `finally` covers a failure but not a signal, so every live temp directory
-  // is registered and removed on Ctrl-C as well (#51). While an external tool
-  // runs, `execFileSync` blocks the event loop and the handler only fires once
-  // that child has exited — which the same Ctrl-C asks it to do, since the
-  // signal reaches the whole process group.
+  // is registered and removed on Ctrl-C as well (#51). The handler only runs
+  // when the event loop turns, which the synchronous pipeline does not let it
+  // do before the run is over. So the usual Ctrl-C, the one that stops an
+  // external tool, is handled inside the run: the tool dies with the signal,
+  // `runTool` throws an `InterruptedError`, and `runPipeline` cleans up and
+  // returns 130/143 (#98). The handler covers what is left: a signal that
+  // arrives between two tools, and the time before and after the run.
   const tempDirs = createTempRegistry(
     (directory) => fs.rmSync(directory, { recursive: true, force: true }),
     options.keepTemp,

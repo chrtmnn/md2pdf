@@ -16,6 +16,8 @@ import assert from 'node:assert/strict';
 import {
   binEntry,
   formatExecError,
+  InterruptedError,
+  interruptSignal,
   locateInstalledBin,
   locateNpxInvocation,
   readPackageOverrides,
@@ -240,4 +242,28 @@ test('formatExecError falls back to the message of an error without tool output'
   assert.equal(formatExecError(new Error('spawn EINVAL'), 'doctoc'), 'spawn EINVAL');
   assert.equal(formatExecError('plain string', 'doctoc'), 'plain string');
   assert.equal(formatExecError(null, 'doctoc'), 'null');
+});
+
+test('interruptSignal recognises a tool stopped by Ctrl-C or SIGTERM (#98)', () => {
+  assert.equal(interruptSignal({ signal: 'SIGINT', status: null }), 'SIGINT');
+  assert.equal(interruptSignal({ signal: 'SIGTERM', status: null }), 'SIGTERM');
+  assert.equal(interruptSignal({ signal: null, status: 130 }), 'SIGINT', 'Puppeteer exits with 130 on SIGINT');
+  assert.equal(interruptSignal({ signal: null, status: 143 }), 'SIGTERM');
+  assert.equal(interruptSignal({ signal: null, status: 0xc000013a }), 'SIGINT', 'STATUS_CONTROL_C_EXIT on Windows');
+  assert.equal(interruptSignal({ signal: null, status: -0x3ffffec6 }), 'SIGINT', 'the same status, signed');
+});
+
+test('interruptSignal leaves ordinary failures and md2pdf\'s own timeout alone (#98)', () => {
+  assert.equal(interruptSignal({ signal: null, status: 1, stderr: 'boom' }), undefined);
+  assert.equal(interruptSignal({ signal: 'SIGKILL', status: null }), undefined);
+  assert.equal(interruptSignal({ code: 'ETIMEDOUT', signal: 'SIGTERM', status: null }), undefined, 'a timeout is not the user');
+  assert.equal(interruptSignal(new Error('spawn EINVAL')), undefined);
+  assert.equal(interruptSignal(null), undefined);
+  assert.equal(interruptSignal('SIGINT'), undefined);
+});
+
+test('InterruptedError carries the shell exit code of its signal (#98)', () => {
+  assert.equal(new InterruptedError('SIGINT').exitCode, 130);
+  assert.equal(new InterruptedError('SIGTERM').exitCode, 143);
+  assert.ok(new InterruptedError('SIGINT') instanceof Error);
 });
