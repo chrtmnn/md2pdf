@@ -105,3 +105,18 @@ test('a very long file name does not fail the run with ENAMETOOLONG (#55)', (t) 
     'the output keeps the full stem',
   );
 });
+
+test('temp names carry no spaces, the output and the title keep them (#84)', (t) => {
+  const dir = tempDir(t);
+  const file = writeFile(dir, 'my first doc.md', '# Doc\n');
+
+  const context = prepareWorkdir(file, makeOptions({ tempRoot: path.join(dir, 'scratch') }))!;
+
+  // mermaid-cli names its assets after the converted Markdown file and links
+  // them without angle brackets, so a space here would end the link.
+  for (const generated of [context.workdir, context.convertedMarkdown, context.tempPdf, context.tempHtml]) {
+    assert.doesNotMatch(path.basename(generated), /\s/, `${path.basename(generated)} has a space`);
+  }
+  assert.equal(comparablePath(context.outputPdf), comparablePath(path.join(dir, 'my first doc.pdf')));
+  assert.equal(context.docTitle, 'my first doc');
+});
