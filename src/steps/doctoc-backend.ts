@@ -186,6 +186,58 @@ function unmask(masked: string): string {
   return masked.replace(MASKED_PREFIX, '<!-- ');
 }
 
+/**
+ * Records which line breaks of a document are CRLF, so the document can be
+ * handed to doctoc with LF only and get its own line endings back.
+ *
+ * @param markdown - Document contents.
+ * @returns One entry per line break, in order: `true` for CRLF.
+ */
+function lineEndings(markdown: string): boolean[] {
+  return markdown
+    .split('\n')
+    .slice(0, -1)
+    .map((line) => line.endsWith('\r'));
+}
+
+/**
+ * Gives doctoc's LF output the line endings of the document it came from.
+ *
+ * doctoc only rewrites its block, so the lines before the block line up with
+ * the source by index and the lines after it by their distance from the end;
+ * both keep their own line ending byte for byte, also in a document that mixes
+ * CRLF and LF. The block's lines take the ending of the START line it replaced,
+ * or for a new block the ending most of the document uses. A line doctoc added
+ * next to a new block that lines up with no source line is treated as part of
+ * the block.
+ *
+ * @param output - doctoc's output, LF only.
+ * @param crlf - The source's line endings, from {@link lineEndings}.
+ * @param source - The block in the source; absent when doctoc created one.
+ * @param block - The block in the output; absent when doctoc wrote none.
+ * @returns The output with the source's line endings.
+ */
+function restoreLineEndings(output: string, crlf: boolean[], source?: TocBlock, block?: TocBlock): string {
+  const lines = output.split('\n');
+  const shift = lines.length - 1 - crlf.length;
+  const blockCrlf = source ? crlf[source.startIndex] : crlf.filter(Boolean).length * 2 > crlf.length;
+
+  return lines
+    .map((line, i) => {
+      if (i === lines.length - 1) {
+        return line;
+      }
+      let isCrlf: boolean | undefined = blockCrlf;
+      if (!block || i < block.startIndex) {
+        isCrlf = crlf[i];
+      } else if (i >= block.endIndex) {
+        isCrlf = crlf[i - shift];
+      }
+      return line + ((isCrlf ?? blockCrlf) ? '\r\n' : '\n');
+    })
+    .join('');
+}
+
 /** doctoc as md2pdf's ToC backend. */
 export const DOCTOC_BACKEND: TocBackend = {
   name: 'doctoc',
@@ -196,9 +248,15 @@ export const DOCTOC_BACKEND: TocBackend = {
     // the last character of a heading right above it. The BOM is detached for
     // the run and put back; it changes no line index.
     const bom = markdown.startsWith(BOM) ? BOM : '';
-    fs.writeFileSync(file, prepareDoctocInput(markdown.slice(bom.length), block));
+    // doctoc 2.5 refreshes an existing block in a CRLF document by skipping
+    // one character after END instead of the whole line break, which leaves a
+    // stray `\n` behind the block — and `-u` refusing every such file. doctoc
+    // therefore only ever sees LF, and each line gets its own ending back.
+    const body = markdown.slice(bom.length);
+    const crlf = lineEndings(body);
+    fs.writeFileSync(file, prepareDoctocInput(body.replace(/\r\n/g, '\n'), block));
     run('doctoc', [file], options);
     const result = readDoctocOutput(fs.readFileSync(file, 'utf8'), markers);
-    return { ...result, markdown: bom + result.markdown };
+    return { ...result, markdown: bom + restoreLineEndings(result.markdown, crlf, block, result.block) };
   },
 };
