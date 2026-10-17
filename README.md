@@ -204,7 +204,7 @@ Each PDF is named after its Markdown file and replaces an existing PDF of that n
 md2pdf -R --merge handbook docs
 ```
 
-This writes `handbook.pdf`. The `.pdf` suffix is optional, so `--merge handbook.pdf` is equivalent. The name is a file name, not a path; use `-o` to choose the folder. Without `-o` the PDF is written to the common parent folder of all inputs.
+This writes `handbook.pdf`. The `.pdf` suffix is optional, so `--merge handbook.pdf` is equivalent. The name is a file name, not a path; use `-o` to choose the folder. It comes before the files, so a name ending in `.md` is rejected: `--merge a.md b.md` would otherwise use `a.md` as the name and merge only `b.md`. Without `-o` the PDF is written to the common parent folder of all inputs.
 
 Merging happens on the Markdown, before rendering, and the normal conversion then runs once over the combined document. Two consequences are worth knowing:
 

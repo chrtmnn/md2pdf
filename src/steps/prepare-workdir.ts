@@ -2,7 +2,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { ConversionContext, ConverterOptions } from '../types';
-import { deriveOutputPaths, shortenStemForTemp } from './output-targets';
+import { deriveOutputPaths, sanitizeStemForTemp, shortenStemForTemp } from './output-targets';
 
 /**
  * Creates the per-file conversion context and temporary work directory.
@@ -38,8 +38,10 @@ export function prepareWorkdir(sourceFile: string, options: ConverterOptions): C
   }
 
   // The base directory is part of the budget: Windows limits the whole path,
-  // so a deep `-o` leaves less room for the generated names (#55).
-  const tempStem = shortenStemForTemp(stem, base);
+  // so a deep `-o` leaves less room for the generated names (#55). The
+  // sanitized stem keeps spaces out of the Mermaid asset links mermaid-cli
+  // derives from the converted file's name (#84).
+  const tempStem = shortenStemForTemp(sanitizeStemForTemp(stem), base);
 
   fs.mkdirSync(base, { recursive: true });
   const workdir = fs.mkdtempSync(path.join(base, `${tempStem}_`));

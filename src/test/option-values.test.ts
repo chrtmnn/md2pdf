@@ -86,6 +86,18 @@ test('parseMergeName rejects characters that are illegal in a file name', () => 
   }
 });
 
+test('parseMergeName rejects a Markdown file name and shows the syntax (#84)', () => {
+  // `--merge "a.md" "b.md"` used to merge only b.md into `a.md.pdf`.
+  for (const value of ['my first doc.md', 'notes.MD']) {
+    assert.throws(
+      () => parseMergeName(value),
+      /--merge <name> <files\.\.\.>/,
+      `expected ${value} to be rejected`,
+    );
+  }
+  assert.equal(parseMergeName('notes.mdx'), 'notes.mdx', 'only the .md extension is refused');
+});
+
 test('parseCssVars rejects a value carrying a comment delimiter (#46)', () => {
   assert.throws(() => parseCssVars(['page-size=A4 /*']), /Invalid CSS variable value/);
   assert.throws(() => parseCssVars(['page-size=A4 */']), /Invalid CSS variable value/);

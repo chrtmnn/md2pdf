@@ -12,6 +12,7 @@ import {
   describeOutputCollisions,
   findOutputCollisions,
   isGeneratedHtml,
+  sanitizeStemForTemp,
   shortenStemForTemp,
   stampGeneratedHtml,
 } from '../steps/output-targets';
@@ -104,6 +105,19 @@ test('stamping is idempotent and recognised', () => {
   assert.equal(stampGeneratedHtml(once), once);
   assert.equal(isGeneratedHtml(once), true);
   assert.equal(isGeneratedHtml('<html><head><meta name="generator" content="other"></head></html>'), false);
+});
+
+test('sanitizeStemForTemp replaces what would break a bare link destination (#84)', () => {
+  assert.equal(sanitizeStemForTemp('my first doc'), 'my_first_doc');
+  assert.equal(sanitizeStemForTemp('tab\there'), 'tab_here');
+  assert.equal(sanitizeStemForTemp('a#b?c%d'), 'a_b_c_d');
+  assert.equal(sanitizeStemForTemp('draft (v2) <x> [y] \\z'), 'draft__v2___x___y___z');
+});
+
+test('sanitizeStemForTemp keeps letters in any script, digits and ._- (#84)', () => {
+  assert.equal(sanitizeStemForTemp('Bericht_Größe-2.v1'), 'Bericht_Größe-2.v1');
+  assert.equal(sanitizeStemForTemp('résumé'.normalize('NFD')), 'résumé'.normalize('NFD'), 'combining marks stay');
+  assert.equal(sanitizeStemForTemp('日本語'), '日本語');
 });
 
 test('shortenStemForTemp leaves an ordinary stem alone (#55)', () => {
