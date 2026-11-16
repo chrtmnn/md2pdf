@@ -44,7 +44,7 @@
   },
   "homepage": "https://github.com/chrtmnn/md2pdf#readme",
   "dependencies": {
-    "@clack/prompts": "1.8.1",
+    "@clack/prompts": "1.9.0",
     "@mermaid-js/mermaid-cli": "11.17.0",
     "commander": "15.0.0",
     "doctoc": "2.5.0",
